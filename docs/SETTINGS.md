@@ -1,6 +1,6 @@
 # Settings.json
 
-`StreamingAssets/Settings.json`에 위치합니다.
+현장에서 바꾸는 `StreamingAssets/Settings.json`의 키 설명입니다. 예약 종료 시각(`ShutdownSettings.json`)은 [USAGE.md](USAGE.md#예약-종료-shutdownscheduler), 개요는 [README](../README.md)에 있습니다.
 
 ```json
 {
