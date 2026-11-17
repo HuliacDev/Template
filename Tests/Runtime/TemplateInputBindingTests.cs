@@ -5,7 +5,7 @@ namespace HuliacDev.Tests
 {
     /// <summary>
     /// TemplateInputActions의 System 단축키 기본 바인딩과, RootLifetimeScope.ConfigureInputBindings에서
-    /// 바인딩을 바꾸는 README 예시가 실제로 동작하는지 검증함.
+    /// 바인딩을 바꾸는 docs/USAGE.md 예시가 실제로 동작하는지 검증함.
     /// InputTestFixture로 실제 장치 입력을 막은 가상 입력 환경에서 실행함.
     /// </summary>
     public class TemplateInputBindingTests : InputTestFixture
@@ -49,7 +49,7 @@ namespace HuliacDev.Tests
         }
 
         /// <summary>
-        /// README 예시처럼 Ctrl+F 조합으로 바꾸면, 스캐너가 보내는 것과 같은 F 단독 입력에는 실행되지 않고
+        /// docs/USAGE.md 예시처럼 Ctrl+F 조합으로 바꾸면, 스캐너가 보내는 것과 같은 F 단독 입력에는 실행되지 않고
         /// Ctrl을 누른 채 F를 눌렀을 때만 실행되어야 함.
         /// </summary>
         [Test]
