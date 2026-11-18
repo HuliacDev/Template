@@ -131,11 +131,11 @@ namespace HuliacDev.Data
 
             if (logger != null)
             {
-                logger.ZLogError($"[AppSettingsProvider] Failed to load {SettingsFileName}. Using fallback settings: inactivity timer on ({FallbackResetTimeSeconds}s), no sounds, fonts, closeSetting, always on top or auto restart. Fix the file and restart the app.");
+                logger.ZLogError($"[AppSettingsProvider] Failed to load {SettingsFileName}. Using fallback settings: inactivity timer on ({FallbackResetTimeSeconds}s), no sounds, fonts, always on top or auto restart. Fix the file and restart the app.");
             }
             else
             {
-                Debug.LogError(ZString.Concat("[AppSettingsProvider] Failed to load ", SettingsFileName, ". Using fallback settings: inactivity timer on (", FallbackResetTimeSeconds, "s), no sounds, fonts, closeSetting, always on top or auto restart. Fix the file and restart the app."));
+                Debug.LogError(ZString.Concat("[AppSettingsProvider] Failed to load ", SettingsFileName, ". Using fallback settings: inactivity timer on (", FallbackResetTimeSeconds, "s), no sounds, fonts, always on top or auto restart. Fix the file and restart the app."));
             }
 
             return new Settings

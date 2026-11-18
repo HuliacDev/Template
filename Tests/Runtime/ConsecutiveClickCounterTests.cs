@@ -42,7 +42,7 @@ namespace HuliacDev.Tests
         }
 
         /// <summary>
-        /// 정확히 제한 시간째에 누른 클릭은 같은 연속 클릭으로 인정해야 함(GameCloser 기존 판정과 같음).
+        /// 정확히 제한 시간째에 누른 클릭은 같은 연속 클릭으로 인정해야 함.
         /// </summary>
         [Test]
         public void 정확히_제한_시간째_클릭은_인정한다()

@@ -1,6 +1,22 @@
 # Changelog
 모든 주요 변경 사항을 이 파일에 기록합니다.
 
+## [26.11.18-1] - 2026-11-18
+
+현장에서 앱을 끄는 방법을 Alt+F4 하나로 모음. 숨은 종료 버튼을 없애고, 자동 재시작 감시가 Alt+F4로 끈 앱도 다시 켜며, 점검할 때는 `F` 키로 끈 뒤 Alt+F4로 끔. 서버 로그 문구도 누가 켜고 껐는지 구분되게 바꿈.
+
+### Changed
+- **Alt+F4로 끈 앱도 자동 재시작 감시가 다시 켬(`Runtime/Core/AutoRestartWatchdog.cs`, `Runtime/Utils/QuitReason.cs`, `Runtime/Network/ApiManagerBase.cs`):** 감시(`autoRestart.enabled`)가 지켜보는 동안 사유 없이 끝나는 종료(Alt+F4·창 닫기·작업 관리자 '작업 끝내기')를 새 종료 코드 76(`AltF4ExitCode`)으로 끝내, 감시가 `restartDelaySeconds`초 뒤 다시 켬(`RestartReason`은 "closed with Alt+F4 (exit code 76)"). Unity는 진행 중인 종료의 코드를 바꿀 수 없어, 감시가 지켜보기 시작하면 `Application.wantsToQuit` 처리기를 붙여 이 종료를 한 번 미뤘다가 76으로 다시 끝냄(`ApiManagerBase`가 있으면 그쪽이 종료 로그를 보낸 뒤 같은 코드로 끝냄). 점검할 때 `F` 키로 끄면 예전처럼 종료 코드 0으로 끝나 다시 켜지지 않음. `F` 키(`WindowFocusRestorer`·`TemplateInputActions`)가 없는 구성은 끌 방법이 없으므로 Alt+F4를 다시 켜지 않음. Windows 종료·로그오프 중이거나, Run In Background가 꺼진 채 포커스 없이 창을 닫으면(PlayerLoop가 멈춰 다시 끝낼 수 없음) 미루지 않고 다시 켜지 않음. 다시 켜는 코드로 끝낼 때는 앱 로그에 남겨, 다시 켜진 뒤에도 앞 실행의 로그에서 Alt+F4로 끈 것을 알 수 있음. `QuitReasonTests`에 1건, `AutoRestartPolicyTests`에 2건 추가.
+  - **Breaking:** 프로젝트 코드가 `QuitReason.Set(사유)` 없이 `Application.Quit()`만 불러 앱을 끄면 Alt+F4로 보고 감시가 다시 켬. 일부러 끄는 코드는 `QuitReason.Set(사유)`를 먼저 부를 것.
+  - **Breaking:** `QuitReason.User`를 `QuitReason.AltF4`(값 "Alt + F4")로 바꿈.
+- **`F` 키(ToggleFocusRestore)가 Alt+F4 재시작도 함께 끄고 켬(`Runtime/Core/WindowFocusRestorer.cs`):** 앱 시작 시 켜져 있고, 끄면 포커스 복구·항상 위와 함께 Alt+F4 재시작도 꺼짐. 감시가 지켜보고 있거나 지켜보기 시작하는 중이면 화면 위쪽 표시와 로그에 함께 적음(예: "Focus restore, always on top and Alt+F4 restart OFF - press F to turn them back on"). 씬마다 스코프를 두는 구성에서 새 스코프가 옛 스코프보다 먼저 시작돼도 옛 스코프가 사라지며 Alt+F4 재시작을 끄지 않음. 새 `WindowFocusRestorerTests`에 4건(테스트 어셈블리에 VContainer 참조 추가).
+- **서버 로그 문구 변경(`Runtime/Network/ApiManagerBase.cs`, `Tools~/ShutdownScheduleEditor/TaskSchedulerIntegration.cs`):** 같은 날 다시 켠 시작 로그를 사람이 켰는지 감시가 켰는지 나눠 `start (user restart)`·`start (auto restart)`로 보냄(감시가 켠 실행은 그날 처음이어도 `start (auto restart)`, 그날 처음 사람이 켜면 그대로 `start`). 종료 로그는 "by"를 빼고 `end (Alt + F4)`·`end (Shutdown Scheduler)`·`end ({TryRequestRestart의 reason})`로, 작업 스케줄러 백업은 `end_kill (Task Scheduler)`로 보냄. 새 `ApiLogMessageTests`에 2건.
+  - **Breaking:** 서버에서 문구로 집계하던 곳은 새 문구로 바꿀 것(`start (restart)`, `end (by User)`, `end (by Shutdown Scheduler)`, `end_kill (by Task Scheduler)`는 더 오지 않음). 작업 스케줄러 문구는 예약 종료 편집 도구를 다시 빌드해 백업 작업을 다시 등록해야 현장 PC의 가드 스크립트에 반영됨.
+
+### Removed
+- **숨은 종료 버튼 `GameCloser`와 `Settings.json`의 `closeSetting` 제거(`Runtime/Utils/GameCloser.cs`·`CloseSettingResolver.cs`, `Runtime/Data/TemplateData.cs`, `Runtime/Prefabs/SystemCanvas.prefab`, `Runtime/App/RootLifetimeScope.cs`):** 앱은 `F` 키로 Alt+F4 재시작을 끈 뒤 Alt+F4로 끔. `SystemCanvas` 프리팹의 `GameClose` 자식을 지우고 `RootLifetimeScope`가 더는 등록하지 않음. `QuitReason.GameCloser` 상수와 `GameCloserTests`(23건)도 지움. `ConsecutiveClickCounter`는 운영자용 숨은 버튼에 쓰도록 남김.
+  - **Breaking:** 씬·프리팹에 `GameCloser`를 직접 붙인 프로젝트는 Missing Script가 되므로 그 컴포넌트를 지울 것(`SystemCanvas` 프리팹을 그대로 쓰면 할 일 없음). `GameCloser`를 상속하거나 `QuitReason.GameCloser`·`CloseSetting`을 참조한 코드는 지울 것. `Settings.json`의 `closeSetting` 키는 무시되므로 지울 것.
+
 ## [26.11.10-5] - 2026-11-10
 
 ### Added

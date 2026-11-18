@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using UnityEngine;
 using VContainer;
 using HuliacDev.App;
+using HuliacDev.Core;
 using HuliacDev.Data;
 using HuliacDev.Utils;
 using ZLogger;
@@ -28,12 +29,13 @@ namespace HuliacDev.Network
     /// <para>
     /// Settings.json의 apiUrl은 idx_content_device, uid 등 콘텐츠별 쿼리 파라미터가
     /// 이미 포함된 형태(message= 까지)로 서버에서 발급되므로, 각 로그는 여기에 상태
-    /// 메시지 값만 이어붙여 GET 요청을 보냄. 메시지 규칙: 시작 "start"/"start (restart)",
-    /// 종료 "end (by User/GameCloser/Shutdown Scheduler)", idle 진입 "move_idle"/
+    /// 메시지 값만 이어붙여 GET 요청을 보냄. 메시지 규칙: 시작 "start"(그날 처음)/"start (user restart)"(같은 날 다시 켬)/
+    /// "start (auto restart)"(자동 재시작 감시가 다시 켬), 종료 "end (Alt + F4)"/"end (Shutdown Scheduler)"/
+    /// "end ({TryRequestRestart의 reason})", idle 진입 "move_idle"/
     /// "move_idle_timeout", 외부 API 호출 "Call API {url}", 외부 API 응답 "Return OK"/
     /// "Return fail"(실패 사유를 알 수 있으면 "Return fail: {reason}"). 유니티가 멈춰
-    /// 작업 스케줄러가 대신 끈 경우("end_kill (by Task
-    /// Scheduler)")는 이 클래스가 아니라 Tools~/ShutdownScheduleEditor의 가드 스크립트가 별도로 보냄.
+    /// 작업 스케줄러가 대신 끈 경우("end_kill (Task Scheduler)")는 이 클래스가 아니라
+    /// Tools~/ShutdownScheduleEditor의 가드 스크립트가 별도로 보냄.
     /// </para>
     /// </summary>
     public abstract class ApiManagerBase : MonoBehaviour
@@ -46,9 +48,13 @@ namespace HuliacDev.Network
 
         /// <summary>
         /// 정상 종료 시 서버에 보낼 상태 메시지. 실제 전송 시에는 QuitReason.Current를 덧붙여
-        /// "end (by User/GameCloser/Shutdown Scheduler)" 형태로 나감.
+        /// "end (Alt + F4)"·"end (Shutdown Scheduler)" 형태로 나감(BuildExitMessage).
         /// </summary>
         private const string ExitLogMessage = "end";
+
+        private const string StartupMessage = "start";
+        private const string UserRestartStartupMessage = "start (user restart)";
+        private const string AutoRestartStartupMessage = "start (auto restart)";
 
         private const string MoveIdleMessage = "move_idle";
         private const string MoveIdleTimeoutMessage = "move_idle_timeout";
@@ -193,7 +199,8 @@ namespace HuliacDev.Network
             {
                 _isSendingExitLog = true;
                 // Alt+F4처럼 사유를 기록하지 않은 종료도 진행 중으로 표시해, 로그를 보내는 사이 재시작 요청이 이 종료를 덮어쓰지 않게 함.
-                QuitReason.MarkQuitRequested();
+                // 이때 끝낼 종료 코드도 정함. 자동 재시작 감시가 지켜보고 Alt+F4 재시작이 켜져 있으면 감시가 다시 켜는 코드가 됨.
+                AutoRestartWatchdog.MarkUnattributedQuit();
                 SendExitLogThenQuitAsync().Forget();
             }
 
@@ -230,7 +237,7 @@ namespace HuliacDev.Network
         /// 보류시켰던 종료를 플랫폼 환경(에디터 및 빌드)에 맞춰 재개함.
         /// 에디터의 플레이 모드 종료는 Application.Quit()으로 재개되지 않으므로 분기함.
         /// Unity는 처음 Application.Quit(코드)에 넘긴 종료 코드를 알려주지 않으므로 QuitReason.ExitCode로 끝냄.
-        /// 인수 없이 끝내면 종료 코드가 0이 되어, 자동 재시작 감시가 일부러 끈 것으로 보고 다시 켜지 않기 때문.
+        /// 인수 없이 끝내면 종료 코드가 0이 되어, 자동 재시작 감시가 일부러 끈 것으로 보고 다시 켜지 않기 때문(재시작 요청, Alt+F4 재시작).
         /// </summary>
         private void QuitApplication()
         {
@@ -267,11 +274,11 @@ namespace HuliacDev.Network
                     return;
                 }
 
-                // 누가 종료시켰는지(사용자의 Alt+F4/창 닫기, GameCloser, ShutdownScheduler)
+                // 누가 종료시켰는지(사용자의 Alt+F4/창 닫기, ShutdownScheduler, 재시작 요청)
                 // 메시지에 남겨서 서버 로그만 보고도 원인을 구분할 수 있게 함. 작업 스케줄러
                 // 백업(유니티가 멈춰 강제로 꺼진 경우)은 이 경로를 타지 않고 가드 스크립트가
-                // "end_kill (by Task Scheduler)"를 직접 보냄(TaskSchedulerIntegration.cs 참고).
-                string message = $"{ExitLogMessage} (by {QuitReason.Current})";
+                // "end_kill (Task Scheduler)"를 직접 보냄(TaskSchedulerIntegration.cs 참고).
+                string message = BuildExitMessage(QuitReason.Current);
                 string url = ZString.Concat(settings.apiUrl, Uri.EscapeDataString(message));
 
                 await ApiRetryUtil.SendGetRequestWithRetryAsync(
@@ -333,7 +340,7 @@ namespace HuliacDev.Network
 
                 string today = DateTime.Now.ToString("yyyy-MM-dd");
                 bool alreadyLoggedToday = PlayerPrefs.GetString(LastStartupLogDateKey, string.Empty) == today;
-                string message = alreadyLoggedToday ? "start (restart)" : "start";
+                string message = BuildStartupMessage(AutoRestartWatchdog.WasRestarted, alreadyLoggedToday);
                 string url = ZString.Concat(settings.apiUrl, Uri.EscapeDataString(message));
 
                 // 시작 로그는 Windows의 인터넷 판정으로 거르지 않음. 판정이 틀린 망(확인 주소를 막은 망, LAN 안 서버)에서도
@@ -362,6 +369,24 @@ namespace HuliacDev.Network
             {
                 if (Logger != null) Logger.ZLogError($"[ApiManagerBase] Exception while sending startup log: {e.Message}");
             }
+        }
+
+        /// <summary>
+        /// 시작 로그 메시지를 고름. 자동 재시작 감시가 다시 켠 실행이면 "start (auto restart)"(그날 처음이어도 감시가 켠 것을 우선함),
+        /// 같은 날 시작 로그를 이미 보낸 뒤 사람이 다시 켰으면 "start (user restart)", 그날 처음이면 "start".
+        /// </summary>
+        internal static string BuildStartupMessage(bool wasAutoRestarted, bool alreadyLoggedToday)
+        {
+            if (wasAutoRestarted) return AutoRestartStartupMessage;
+            return alreadyLoggedToday ? UserRestartStartupMessage : StartupMessage;
+        }
+
+        /// <summary>
+        /// 종료 로그 메시지 "end ({reason})"를 조립함. reason은 QuitReason.Current(예: "Alt + F4", "Shutdown Scheduler").
+        /// </summary>
+        internal static string BuildExitMessage(string reason)
+        {
+            return ZString.Concat(ExitLogMessage, " (", reason, ")");
         }
 
         /// <summary>

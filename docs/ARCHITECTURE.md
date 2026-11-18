@@ -9,7 +9,7 @@ Runtime/
 │              InactivityTimer      — 무입력 감지 및 복귀 이벤트
 │              ShutdownScheduler    — 자동 종료 스케줄러
 │              WindowFocusRestorer  — 포커스를 잃은 앱 창 복구·항상 위 (Windows)
-│              AutoRestartWatchdog  — 비정상 종료·응답 없음 시 자동 재시작 (Windows)
+│              AutoRestartWatchdog  — 비정상 종료·응답 없음·Alt+F4 뒤 자동 재시작 (Windows)
 │              StateMachine · IState — 상태 머신
 ├─ Data/       Settings 스키마 + AppSettingsProvider
 ├─ Hardware/   ArduinoManager       — 시리얼 통신 및 자동 재연결
@@ -20,9 +20,9 @@ Runtime/
 │              PacketUtility        — 바이너리 패킷과 구조체 변환
 │              UdpCommandClient     — 랜 장치에 UDP 명령 전송(응답 확인·재전송)
 │              TcpLineClient        — 랜 장치와 TCP 줄 단위 통신(재접속·keepalive)
-├─ Prefabs/    SystemCanvas         — 숨은 종료 버튼이 들어 있는 시스템 캔버스
+├─ Prefabs/    SystemCanvas         — 런타임 인스펙터가 들어 있는 시스템 캔버스
 ├─ UI/         UIManager · SoundManager · VideoManager · FadeManager
-├─ Utils/      SingletonGuard<T> · JsonLoader · GameCloser · ConsecutiveClickCounter · SystemCanvas
+├─ Utils/      SingletonGuard<T> · JsonLoader · ConsecutiveClickCounter · SystemCanvas
 │              LogRetentionService  — 로그 파일 회전 및 만료 정리
 └─ ThirdParty/ RuntimeInspector · LogViewer(Reporter)
 Editor/
@@ -44,8 +44,8 @@ Tests/
 | **Core** | `GameManagerBase` | 앱 수명주기 총괄, VContainer DI 기반 비동기 초기화, `OnSettingsLoaded` 가상 훅 제공 |
 | | `InactivityTimer` | 키오스크 무입력 시간 감지 및 자동 복귀 이벤트(`InactivityTimeoutEvent`) 발행 |
 | | `ShutdownScheduler` | 일별/요일별 자동 종료 스케줄링 및 사전 알림(`BeforeShutdownEvent`) 발행 |
-| | `WindowFocusRestorer` | 앱 창이 포커스를 잃으면 다시 앞으로 가져와 키보드형 스캐너 입력 유지, 선택적으로 창을 항상 위로 둠 (Windows 스탠드얼론, `F` 키로 끄고 켬) |
-| | `AutoRestartWatchdog` | 크래시·강제 종료·응답 없음으로 앱이 끝나면 숨은 감시 스크립트가 다시 실행, 정상 종료(숨은 종료 버튼·예약 종료·창 닫기)는 다시 켜지 않음 (Windows 스탠드얼론, `autoRestart`로 켬) |
+| | `WindowFocusRestorer` | 앱 창이 포커스를 잃으면 다시 앞으로 가져와 키보드형 스캐너 입력 유지, 선택적으로 창을 항상 위로 둠 (Windows 스탠드얼론, `F` 키로 Alt+F4 재시작과 함께 끄고 켬) |
+| | `AutoRestartWatchdog` | 크래시·강제 종료·응답 없음·Alt+F4로 앱이 끝나면 숨은 감시 스크립트가 다시 실행, 예약 종료와 `F` 키로 끈 뒤의 Alt+F4는 다시 켜지 않음 (Windows 스탠드얼론, `autoRestart`로 켬) |
 | | `StateMachine<TContext>` | `IState<TContext>` 기반 상태 머신. 전환할 때 상태를 새로 만들지 않고 미리 만든 인스턴스의 참조만 바꿈 |
 | **UI & Media** | `UIManager` | uGUI/TextMeshPro 비동기 폰트 프리로드/일괄 적용, 텍스처 VRAM 압축(`compress`) 제어. `Set*`가 새로 붙이는 이미지·글자·영상은 클릭을 받지 않도록 `raycastTarget`을 끄고(대상에 Button 등 Selectable이 있거나 버튼 배경이면 켬), 대상에 다른 Graphic이 이미 있으면 붙이지 않고 경고를 남김 |
 | | `FadeManager` | 화면 페이드 인/아웃(DOTween/UniTask), 커스텀 색상(`Color? color`) 및 `SortingOrder` 제어 |
@@ -61,7 +61,7 @@ Tests/
 | **Hardware** | `ArduinoManager` | 시리얼 통신, 읽기 스레드 예외 격리 및 메인 스레드 마샬링 기반 자동 재연결(`AutoReconnect`, 연결된 뒤 끊겼을 때만 동작하며 `AutoReconnectIntervalMs`(기본 3초)에서 두 배씩 늘려 `AutoReconnectMaxIntervalMs`(기본 30초)에서 멈춤). 연결 변화는 이벤트(`OnConnected`·`OnDisconnected`)라 현재 상태는 `IsConnected`로 읽음. 포트를 열면 Uno·Nano 계열은 리셋돼 첫 줄까지 약 1.7초가 걸리므로 핸드셰이크를 `HandshakeTimeoutMs`(기본 3초) 동안 기다림. 모든 포트를 동시에 확인해 포트 수와 상관없이 약 1.7초에 연결됨 |
 | **Data & Utils**| `AppSettingsProvider` | `Settings.json` 단일 로드/캐싱 및 런타임 핫 리로드(`ReloadAsync`) 지원, 읽기 실패 시 비활동 타이머를 켠 대체 설정 사용 |
 | | `JsonLoader` | `StreamingAssets` 및 `PersistentData` 지원, `.json` 확장자 자동 보정 직렬화, 읽기 성공 여부 반환(`TryLoadAsync`), 임시 파일을 거친 저장과 저장 성공 여부 반환 |
-| | `ConsecutiveClickCounter` | "N초 안에 M번 누르기" 연속 클릭 판정 (`GameCloser`가 사용, 운영자용 숨은 버튼에 재사용) |
+| | `ConsecutiveClickCounter` | "N초 안에 M번 누르기" 연속 클릭 판정 (운영자용 숨은 버튼에 씀) |
 | | `SingletonGuard<T>` | `DontDestroyOnLoad` 중복 방어 일원화, 즉시 비활성화 및 에디터 도메인 리로드 자가 복구 |
 
 ## 설계 원칙
@@ -70,7 +70,7 @@ Tests/
 - **코루틴 대신 UniTask** — 파일 I/O와 연출 로직 전부 async. 프레임 드랍과 GC 할당을 줄입니다.
 - **`Settings.json` 단일 로드** — `AppSettingsProvider`가 로드를 일원화하여 공유합니다. 매니저가 개별 로드하지 않습니다.
 - **로깅은 ZLogger** — `Debug.Log` 대신 주입받은 `ILogger<T>`를 사용합니다.
-- **리플렉션 최소화** — 런타임 코드에 `System.Reflection` 직접 사용이 없습니다. DI 주입도 소스 제너레이터로 대체할 수 있습니다([설치 6단계](INSTALL.md#6-vcontainer-소스-제너레이터-선택-권장)). 인스펙터 `UnityEvent` 바인딩 대신 코드로 직접 연결하는 것(`GameCloser`)도 같은 맥락입니다.
+- **리플렉션 최소화** — 런타임 코드에 `System.Reflection` 직접 사용이 없습니다. DI 주입도 소스 제너레이터로 대체할 수 있습니다([설치 6단계](INSTALL.md#6-vcontainer-소스-제너레이터-선택-권장)).
 
 > **예외:** `ThirdParty/Plugins/RuntimeInspector`는 런타임 필드 조사가 존재 이유이므로 리플렉션을 사용합니다.
 > 디버그 전용이라 릴리즈 빌드에서 제외하면 해당 비용도 사라집니다.

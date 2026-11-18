@@ -152,7 +152,6 @@ SampleScene
 ├─ GameManager        : GameManagerBase를 상속한 프로젝트 고유 클래스
 ├─ TestLifetimeScope  : RootLifetimeScope를 상속한 씬 스코프
 ├─ SystemCanvas       : Runtime/Prefabs/SystemCanvas.prefab (필수)
-│   └─ (하위) GameCloser  : Button + Image + GameCloser (필수)
 ├─ Reporter           : Reporter + ReporterMessageReceiver
 ├─ Managers           : UIManager + SoundManager + VideoManager
 └─ EventSystem        : InputSystemUIInputModule
@@ -170,7 +169,7 @@ public class TestLifetimeScope : RootLifetimeScope
 }
 ```
 
-> `RootLifetimeScope`가 `SystemCanvas`·`GameCloser`를 등록하고, 씬에 있는 `FadeManager`·`UIManager`·`SoundManager`·`VideoManager`·`ArduinoManager`·`ApiManagerBase`·`InactivityTimer`·`ShutdownScheduler`도 자동으로 찾아 등록하므로, 프로젝트 스코프에서는 `GameManager`만 등록합니다. `UIManager`는 `VideoManager`를 주입받으므로 씬에 함께 두어야 합니다.
+> `RootLifetimeScope`가 `SystemCanvas`를 등록하고, 씬에 있는 `FadeManager`·`UIManager`·`SoundManager`·`VideoManager`·`ArduinoManager`·`ApiManagerBase`·`InactivityTimer`·`ShutdownScheduler`도 자동으로 찾아 등록하므로, 프로젝트 스코프에서는 `GameManager`만 등록합니다. `UIManager`는 `VideoManager`를 주입받으므로 씬에 함께 두어야 합니다.
 
 > **소비자를 전부 올려두는 것이 중요합니다.** `Settings.json`을 요청하는 컴포넌트가 여럿이어야 같은 프레임에 동시 요청이 발생하고, 그 경합에서만 드러나는 결함을 잡을 수 있습니다. 실제로 `AppSettingsProvider`의 동시 요청 예외가 이 구성 덕분에 발견되었습니다. 소비자를 하나만 올리면 해당 유형의 문제는 재현되지 않습니다.
 

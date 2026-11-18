@@ -137,7 +137,6 @@ namespace HuliacDev.App
                 return inputActions;
             }, Lifetime.Singleton);
             builder.RegisterComponentInHierarchy<SystemCanvas>();
-            builder.RegisterComponentInHierarchy<GameCloser>();
         }
 
         /// <summary>

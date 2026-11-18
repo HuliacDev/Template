@@ -16,13 +16,18 @@ using System.Text;
 namespace HuliacDev.Core
 {
     /// <summary>
-    /// 앱이 크래시·강제 종료·응답 없음으로 끝나면 다시 실행하는 감시 스크립트(PowerShell)를 앱 시작 시 띄우는 서비스(Windows 스탠드얼론 빌드 전용).
+    /// 앱이 크래시·강제 종료·응답 없음·Alt+F4로 끝나면 다시 실행하는 감시 스크립트(PowerShell)를 앱 시작 시 띄우는 서비스(Windows 스탠드얼론 빌드 전용).
     /// <para>
-    /// 감시 스크립트는 앱 프로세스가 끝나기를 기다렸다가 종료 코드를 봄. GameCloser·ShutdownScheduler·Alt+F4·창 닫기는 모두
-    /// Application.Quit 경로로 끝나 종료 코드가 0이므로, 일부러 끈 것으로 보고 다시 실행하지 않고 감시도 함께 끝냄.
+    /// 감시 스크립트는 앱 프로세스가 끝나기를 기다렸다가 종료 코드를 봄. ShutdownScheduler처럼 QuitReason.Set으로 사유를 적고
+    /// Application.Quit으로 끝내면 종료 코드가 0이므로, 일부러 끈 것으로 보고 다시 실행하지 않고 감시도 함께 끝냄.
     /// 크래시(접근 위반 0xC0000005 등)와 taskkill /F처럼 프로세스를 바로 끝낸 경우(1)는 앱 코드가 실행될 기회가 없어 QuitReason으로는
     /// 구분할 수 없지만 종료 코드가 0이 아니므로 다시 실행함. 창이 Windows에 '응답 없음'으로 판정된 상태가 정해진 시간 넘게
     /// 이어지면 강제 종료하고 다시 실행함.
+    /// </para>
+    /// <para>
+    /// 사유 없이 끝나는 종료(Alt+F4·창 닫기)는 AltF4ExitCode(76)로 끝내 다시 실행함. 점검할 때는 WindowFocusRestorer의
+    /// ToggleFocusRestore 키(기본 F)로 포커스 복구와 함께 끄면 Alt+F4가 종료 코드 0으로 끝나 다시 켜지지 않음.
+    /// 토글 키가 없으면(WindowFocusRestorer·TemplateInputActions 미등록) 끌 방법이 없으므로 Alt+F4 재시작을 쓰지 않음.
     /// </para>
     /// <para>
     /// 감시 스크립트는 다시 실행한 앱도 계속 지켜보며, 다시 실행한 앱에 환경 변수로 자기 PID와 재시작 이유를 넘김.
@@ -36,7 +41,7 @@ namespace HuliacDev.Core
     /// <para>
     /// 프로젝트 코드는 정적 API로 상태를 읽음: 이번 실행이 감시가 다시 켠 실행인지(WasRestarted, RestartReason),
     /// 감시가 지금 앱을 지켜보는지(IsWatching, WaitUntilWatchingAsync). 앱이 스스로 다시 켜져야 할 때는 TryRequestRestart를 부름.
-    /// 환경 변수 이름을 복사해 읽거나 Application.Quit(코드)를 직접 부르지 말 것(이름이 바뀌거나 ApiManagerBase가 종료 코드를 0으로 바꿀 수 있음).
+    /// 환경 변수 이름을 복사해 읽거나 Application.Quit(코드)를 직접 부르지 말 것(이름이 바뀌거나 ApiManagerBase·Alt+F4 처리기가 종료 코드를 바꿀 수 있음).
     /// </para>
     /// </summary>
     public sealed class AutoRestartWatchdog : IStartable, IDisposable
@@ -52,6 +57,12 @@ namespace HuliacDev.Core
         /// 다시 켠 앱의 RestartReason에 "restart requested by the app"으로 남김. WatchdogScript와 맞춰야 함.
         /// </summary>
         public const int RestartRequestedExitCode = 75;
+
+        /// <summary>
+        /// 사유 없이 끝나는 종료(Alt+F4·창 닫기)를 감시가 다시 켜도록 끝낼 때 쓰는 종료 코드. 감시 스크립트가 이 값을 보고 AutoRestart.log와
+        /// 다시 켠 앱의 RestartReason에 "closed with Alt+F4 (exit code 76)"으로 남김. WatchdogScript와 맞춰야 함.
+        /// </summary>
+        public const int AltF4ExitCode = 76;
 
         /// <summary>
         /// 감시 스크립트 본문. 인수 이름은 AutoRestartPolicy.BuildWatchdogArguments와 맞춰야 함.
@@ -220,6 +231,8 @@ while ($true) {
         $reason = ""not responding for ${HangRestartSeconds}s""
     } elseif ($exitCode -eq 75) {
         $reason = 'restart requested by the app (exit code 75)'
+    } elseif ($exitCode -eq 76) {
+        $reason = 'closed with Alt+F4 (exit code 76)'
     } else {
         $reason = 'exit code {0} (0x{0:X8})' -f $exitCode
     }
@@ -272,7 +285,22 @@ while ($true) {
         /// <summary>감시를 띄우지 않기로 했거나, 띄운 감시가 지켜보기 시작했거나 실패해 결과가 정해지면 완료됨(WaitUntilWatchingAsync가 기다림).</summary>
         private static readonly UniTaskCompletionSource WatchDecided = new UniTaskCompletionSource();
 
+        /// <summary>
+        /// Alt+F4 재시작을 마지막으로 켜거나 끈 쪽(토글 키를 가진 WindowFocusRestorer). 씬마다 스코프를 두는 구성에서 새 스코프가
+        /// 옛 스코프보다 먼저 시작돼도, 옛 스코프가 사라지며 새 스코프가 정한 상태를 끄지 않게 하기 위함.
+        /// </summary>
+        private static object _altF4RestartOwner;
+
+        /// <summary>
+        /// Alt+F4·창 닫기로 끝날 때 다시 켤지. WindowFocusRestorer가 토글 키를 연결하면 켜고, 그 키로 포커스 복구와 함께 끄고 켬.
+        /// 토글 키가 없으면 점검할 때 앱을 끌 방법이 없으므로 꺼진 채로 둠.
+        /// </summary>
+        private static bool _isAltF4RestartOn;
+
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+        /// <summary>GetSystemMetrics의 SM_SHUTTINGDOWN. 0이 아니면 Windows가 종료·로그오프 중임(감시 스크립트와 같은 값).</summary>
+        private const int SmShuttingDown = 0x2000;
+
         /// <summary>감시가 지켜보기 시작했는지 확인하는 간격(밀리초). 감시가 뜨는 데 몇 초 걸리므로 매 프레임 확인하지 않음.</summary>
         private const int ReadyPollIntervalMilliseconds = 200;
 
@@ -283,6 +311,16 @@ while ($true) {
         // 한 프로세스에서 감시를 두 번 띄우면 두 감시가 각자 앱을 다시 실행해 앱이 두 개 뜨므로 막음
         // (RootLifetimeScope를 상속한 스코프가 둘 이상 만들어지는 구성 대비).
         private static bool _hasLaunched;
+
+        // 감시를 띄웠지만 아직 지켜보기 시작했는지 정해지지 않은 동안 true. 이때도 Alt+F4 재시작은 곧 적용되므로 토글 표시에 넣음.
+        private static bool _isWatchStarting;
+
+        // 사유 없는 종료(Alt+F4)를 AltF4ExitCode로 다시 끝내려고 미뤄 둔 동안 true.
+        private static bool _isDeferringAltF4Quit;
+
+        // 마지막으로 시작한 살아 있는 인스턴스. 정적 종료 처리기가 앱 로그를 남길 때 이 인스턴스의 로거를 씀. 감시를 띄운 스코프가
+        // 씬 전환으로 먼저 사라져도 이후 스코프의 로거로 남기기 위해, 감시를 띄웠는지와 상관없이 시작할 때마다 바꿈.
+        private static AutoRestartWatchdog _logOwner;
 
         private readonly string _logDirectory;
 #endif
@@ -305,8 +343,8 @@ while ($true) {
 
         /// <summary>
         /// 감시 스크립트가 이번 실행을 다시 켠 이유. 다시 켠 실행이 아니면 null.
-        /// "exit code -1073741819 (0xC0000005)", "not responding for 60s", "restart requested by the app (exit code 75)" 같은
-        /// 로그·표시용 문장임.
+        /// "exit code -1073741819 (0xC0000005)", "not responding for 60s", "restart requested by the app (exit code 75)",
+        /// "closed with Alt+F4 (exit code 76)" 같은 로그·표시용 문장임.
         /// </summary>
         public static string RestartReason => StartupRestartReason;
 
@@ -354,10 +392,10 @@ while ($true) {
         /// 감시가 이 앱을 지켜보고 있으면 RestartRequestedExitCode로 앱을 끝내고 true를 돌려줌. 감시가 restartDelaySeconds초 뒤
         /// 앱을 다시 켜며, 다시 켠 앱의 RestartReason은 "restart requested by the app (exit code 75)"임.
         /// 지켜보고 있지 않으면 끝내지 않고 false를 돌려줌(끝내면 다시 켜 줄 감시가 없어 앱이 꺼진 채 남기 때문).
-        /// 다른 종료(숨은 종료 버튼, 예약 종료, Alt+F4)나 앞서 받아들인 재시작 요청이 이미 진행 중이어도(QuitReason.IsQuitRequested)
-        /// false를 돌려줌. 이때 false는 "감시가 없다"는 뜻이 아니므로 호출부가 따로 Application.Quit을 부르지 말 것. 반대로 요청 뒤 숨은 종료 버튼·예약 종료가 들어오면 그쪽이 종료 코드를 0으로 되돌려 그 종료가 이김.
+        /// 다른 종료(예약 종료, Alt+F4)나 앞서 받아들인 재시작 요청이 이미 진행 중이어도(QuitReason.IsQuitRequested)
+        /// false를 돌려줌. 이때 false는 "감시가 없다"는 뜻이 아니므로 호출부가 따로 Application.Quit을 부르지 말 것. 반대로 요청 뒤 예약 종료가 들어오면 그쪽이 종료 코드를 0으로 되돌려 그 종료가 이김.
         /// <para>
-        /// reason은 ApiManagerBase 종료 로그에 "end (by {reason})"로 남음. 끝내는 경로는 Application.Quit과 같아
+        /// reason은 ApiManagerBase 종료 로그에 "end ({reason})"로 남음. 끝내는 경로는 Application.Quit과 같아
         /// ApiManagerBase가 종료 로그를 보낸 뒤 이 종료 코드로 끝냄. 앱이 60초 안에 다시 요청하면 감시가 간격을 두 배씩 늘림.
         /// </para>
         /// </summary>
@@ -390,6 +428,112 @@ while ($true) {
             return isWatching && !isQuitRequested;
         }
 
+        /// <summary>Alt+F4 재시작이 켜져 있으면 true. 토글 키를 가진 WindowFocusRestorer가 정함.</summary>
+        internal static bool IsAltF4RestartOn => _isAltF4RestartOn;
+
+        /// <summary>
+        /// 감시가 지켜보고 있거나 지켜보기 시작하는 중이면 true(Alt+F4 재시작이 적용되거나 곧 적용됨). 토글 키 표시에 씀.
+        /// IsWatching처럼 OS에 물으므로 매 프레임이 아니라 토글할 때만 부를 것.
+        /// </summary>
+        internal static bool IsWatchingOrStarting
+        {
+            get
+            {
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+                return _isWatchStarting || IsWatching;
+#else
+                return false;
+#endif
+            }
+        }
+
+        /// <summary>
+        /// 토글 키를 가진 쪽(owner)이 Alt+F4 재시작을 켜거나 끔. WindowFocusRestorer가 토글 키를 연결할 때와 그 키를 누를 때 부르며,
+        /// 마지막으로 부른 쪽이 소유자가 됨.
+        /// </summary>
+        internal static void SetAltF4Restart(object owner, bool isOn)
+        {
+            _altF4RestartOwner = owner;
+            _isAltF4RestartOn = isOn;
+        }
+
+        /// <summary>
+        /// 토글 키를 가진 쪽이 사라질 때 부름. 소유자이면 끌 키가 없어지므로 Alt+F4 재시작을 끔. 그사이 다른 쪽(새 스코프)이 소유자가 됐으면
+        /// 그 상태를 그대로 둠.
+        /// </summary>
+        internal static void ReleaseAltF4Restart(object owner)
+        {
+            if (!ReferenceEquals(_altF4RestartOwner, owner)) return;
+
+            _altF4RestartOwner = null;
+            _isAltF4RestartOn = false;
+        }
+
+        /// <summary>
+        /// 사유를 기록하지 않은 종료(Alt+F4·창 닫기)를 진행 중으로 표시하고 그 종료 코드를 정함. 종료를 미루는 쪽(ApiManagerBase, 이 클래스의
+        /// 종료 처리기)이 부르며, 이미 진행 중인 종료는 바꾸지 않음. 감시가 다시 켜는 코드로 끝내면 앱 로그에 남겨, 감시가 다시 켠 뒤에도
+        /// 앞 실행의 로그에서 Alt+F4로 끈 것을 알 수 있게 함. PlayerLoop가 멈춰 다시 켜지 않는 경우도 이유를 남김.
+        /// </summary>
+        internal static void MarkUnattributedQuit()
+        {
+            if (QuitReason.IsQuitRequested) return;
+
+            bool isWatching = IsWatching;
+            bool isPlayerLoopPaused = IsPlayerLoopPaused();
+            int exitCode = ResolveAltF4ExitCode(isWatching, _isAltF4RestartOn, IsWindowsShuttingDown(), isPlayerLoopPaused);
+            QuitReason.MarkQuitRequested(exitCode);
+
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            if (exitCode != 0)
+            {
+                LogFromLiveInstance("[AutoRestartWatchdog] Closed with Alt+F4 or the window close button while Alt+F4 restart is on. Quitting with exit code "
+                    + exitCode + " so the watchdog restarts the app. To close the app for maintenance, turn Alt+F4 restart off with the ToggleFocusRestore key first.");
+            }
+            else if (isWatching && _isAltF4RestartOn && isPlayerLoopPaused)
+            {
+                LogFromLiveInstance("[AutoRestartWatchdog] Closed while unfocused with Run In Background off; quitting without Alt+F4 restart because the player loop is paused.");
+            }
+#endif
+        }
+
+        /// <summary>
+        /// 사유 없이 끝나는 종료(Alt+F4·창 닫기)를 끝낼 종료 코드. IsWatching으로 OS에 물으므로 종료할 때만 부를 것.
+        /// </summary>
+        internal static int ResolveAltF4ExitCode()
+        {
+            return ResolveAltF4ExitCode(IsWatching, _isAltF4RestartOn, IsWindowsShuttingDown(), IsPlayerLoopPaused());
+        }
+
+        /// <summary>
+        /// 감시가 지켜보고 있고 Alt+F4 재시작이 켜져 있으면 AltF4ExitCode, 아니면 0(다시 켜지 않음)을 돌려줌.
+        /// 지켜보지 않을 때 0이 아닌 코드로 끝내면 다시 켜 주는 쪽 없이 비정상 종료처럼 보이기만 하므로 0을 씀. Windows 종료 중에는 감시도
+        /// 다시 켜지 않고, PlayerLoop가 멈춰 있으면 종료를 미뤘다가 다시 끝낼 수 없으므로 이때도 0을 씀(종료를 미루지 않게 하기 위함).
+        /// </summary>
+        internal static int ResolveAltF4ExitCode(bool isWatching, bool isAltF4RestartOn, bool isShuttingDown, bool isPlayerLoopPaused)
+        {
+            return isWatching && isAltF4RestartOn && !isShuttingDown && !isPlayerLoopPaused ? AltF4ExitCode : 0;
+        }
+
+        /// <summary>
+        /// Run In Background가 꺼진 채 포커스가 없으면 플레이어가 멈춰 PlayerLoop(UniTask.Yield)가 돌지 않음(작업 표시줄에서 창을 닫는 경우 등).
+        /// </summary>
+        private static bool IsPlayerLoopPaused()
+        {
+            return !Application.runInBackground && !Application.isFocused;
+        }
+
+        /// <summary>
+        /// Windows가 종료·로그오프 중이면 true. 이때는 감시가 다시 켜지 않으므로 Alt+F4 종료를 미루지 않음(미루면 Windows 종료가 잠깐 막힘).
+        /// </summary>
+        private static bool IsWindowsShuttingDown()
+        {
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            return NativeMethods.GetSystemMetrics(SmShuttingDown) != 0;
+#else
+            return false;
+#endif
+        }
+
         /// <summary>
         /// 환경 변수 값이 비어 있으면 다시 켠 실행이 아닌 것으로 보고 null로 바꿈.
         /// </summary>
@@ -404,6 +548,9 @@ while ($true) {
         /// </summary>
         void IStartable.Start()
         {
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            _logOwner = this;
+#endif
             LogRestartReason();
 
             _cts = CancellationTokenSource.CreateLinkedTokenSource(Application.exitCancellationToken);
@@ -457,7 +604,7 @@ while ($true) {
             {
                 // 감시는 앱을 다시 실행하자마자 앱 핸들을 열어 두므로 이미 지켜보는 중임.
                 _hasLaunched = true;
-                _watchdogProcess = runningWatchdog;
+                BeginWatching(runningWatchdog);
                 WatchDecided.TrySetResult();
                 if (_logger != null) _logger.ZLogInformation($"[AutoRestartWatchdog] Already watched by the watchdog that restarted this app (pid {runningWatchdog.Id}).");
                 return;
@@ -480,6 +627,7 @@ while ($true) {
 
             // 실행 결과를 기다리는 사이 다른 스코프가 또 띄우지 않도록 먼저 표시함.
             _hasLaunched = true;
+            _isWatchStarting = true;
 
             System.Diagnostics.Process watchdog;
             IntPtr readyEvent;
@@ -492,6 +640,7 @@ while ($true) {
             catch (Exception e)
             {
                 _hasLaunched = false;
+                _isWatchStarting = false;
                 WatchDecided.TrySetResult();
                 if (_logger != null && !_isDisposed) _logger.ZLogError($"[AutoRestartWatchdog] Failed to start the watchdog; the app will not be restarted automatically: {e.Message}");
                 return;
@@ -506,6 +655,7 @@ while ($true) {
             {
                 // 감시는 떠서 재시작은 되지만, 지켜보기 시작했는지 알 수 없어 IsWatching을 켜지 않음.
                 watchdog.Dispose();
+                _isWatchStarting = false;
                 WatchDecided.TrySetResult();
                 if (_logger != null && !_isDisposed) _logger.ZLogWarning($"[AutoRestartWatchdog] Could not create the event the watchdog signals when it starts watching; IsWatching stays false.");
                 return;
@@ -542,7 +692,7 @@ while ($true) {
                     if (NativeMethods.WaitForSingleObject(readyEvent, 0) == NativeMethods.WaitObject0)
                     {
                         isWatching = true;
-                        _watchdogProcess = watchdog;
+                        BeginWatching(watchdog);
                         if (_logger != null && !_isDisposed) _logger.ZLogInformation($"[AutoRestartWatchdog] The watchdog is now watching this app.");
                         return;
                     }
@@ -558,8 +708,63 @@ while ($true) {
             {
                 NativeMethods.CloseHandle(readyEvent);
                 if (!isWatching) watchdog.Dispose();
+                _isWatchStarting = false;
                 WatchDecided.TrySetResult();
             }
+        }
+
+        /// <summary>
+        /// 감시가 이 앱을 지켜보기 시작했을 때 부름. 감시 프로세스를 기억하고, 사유 없는 종료(Alt+F4)를 다시 켤 종료 코드로 끝내는 처리기를 붙임.
+        /// 감시는 _hasLaunched로 앱 수명 동안 한 번만 띄우므로 처리기도 한 번만 붙음.
+        /// </summary>
+        private static void BeginWatching(System.Diagnostics.Process watchdog)
+        {
+            _watchdogProcess = watchdog;
+            Application.wantsToQuit += OnWantsToQuit;
+        }
+
+        /// <summary>
+        /// 마지막으로 시작한 살아 있는 인스턴스의 로거로 정보 로그를 남김. 종료 처리기는 정적이라 로거가 없으므로 그 인스턴스의 것을 빌림.
+        /// 살아 있는 인스턴스가 없으면(스코프가 모두 파기돼 로거가 정리됨) 남기지 않음. 종료할 때만 불리므로 문자열을 만들어 넘겨도 됨.
+        /// </summary>
+        private static void LogFromLiveInstance(string message)
+        {
+            AutoRestartWatchdog owner = _logOwner;
+            if (owner == null || owner._isDisposed || owner._logger == null) return;
+
+            owner._logger.ZLogInformation($"{message}");
+        }
+
+        /// <summary>
+        /// 사유 없는 종료(Alt+F4·창 닫기)를 Alt+F4 재시작이 켜져 있으면 미루고 AltF4ExitCode로 다시 끝냄. Unity는 진행 중인 종료의
+        /// 종료 코드를 바꿀 방법이 없어 한 번 미룸. 이미 진행 중인 종료(사유를 적은 종료, ApiManagerBase가 미룬 종료, 이 처리기가 다시 부른 종료)와
+        /// 다시 켜지 않을 종료(코드 0, Windows 종료 중 포함)는 그대로 진행함. ApiManagerBase가 있으면 그쪽이 같은 코드로 종료 로그를 보낸 뒤 끝냄.
+        /// </summary>
+        private static bool OnWantsToQuit()
+        {
+            // 미룬 종료를 다시 끝내기 전에 들어온 종료 요청(창 닫기 연타 등)도 미룸. 그대로 보내면 종료 코드 0으로 끝나 다시 켜지지 않음.
+            // 그사이 들어온 예약 종료도 QuitNextFrameAsync가 그 종료 코드(0)로 대신 끝냄.
+            if (_isDeferringAltF4Quit) return false;
+            if (QuitReason.IsQuitRequested) return true;
+
+            // 다시 켜지 않을 종료(F 키로 끔, Windows 종료 중, PlayerLoop가 멈춤)는 코드 0으로 표시되므로 미루지 않음.
+            MarkUnattributedQuit();
+            if (QuitReason.ExitCode == 0) return true;
+
+            _isDeferringAltF4Quit = true;
+            QuitNextFrameAsync().Forget();
+            return false;
+        }
+
+        /// <summary>
+        /// 종료 처리기 안에서 바로 다시 끝내지 않도록 한 프레임 뒤 QuitReason.ExitCode로 끝냄(ApiManagerBase와 같은 이유).
+        /// 그사이 예약 종료가 사유를 적으면 그 종료 코드(0)로 끝남.
+        /// </summary>
+        private static async UniTaskVoid QuitNextFrameAsync()
+        {
+            await UniTask.Yield();
+            _isDeferringAltF4Quit = false;
+            Application.Quit(QuitReason.ExitCode);
         }
 
         /// <summary>
@@ -667,6 +872,10 @@ while ($true) {
             /// <summary>커널 객체 핸들을 닫음.</summary>
             [DllImport("kernel32.dll")]
             public static extern bool CloseHandle(IntPtr handle);
+
+            /// <summary>시스템 값(SM_SHUTTINGDOWN 등)을 읽음.</summary>
+            [DllImport("user32.dll")]
+            public static extern int GetSystemMetrics(int index);
         }
 #endif
 
@@ -678,6 +887,8 @@ while ($true) {
         {
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
             _isDisposed = true;
+            // 그사이 다른 스코프가 시작했으면 그 인스턴스가 로그를 맡으므로 그대로 둠.
+            if (ReferenceEquals(_logOwner, this)) _logOwner = null;
 #endif
             if (_cts == null) return;
 
