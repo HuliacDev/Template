@@ -4,6 +4,15 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
 
 ---
 
+### [2026-11-19 00:14] Claude → Antigravity + 서브에이전트 · 감시가 다시 켠 앱의 포그라운드 확인, F 키 표시 색 (fix/focus-foreground-check)
+- 요청: F 키 표시의 ON을 초록, OFF를 빨강으로. 감시가 다시 켠 앱에서 D 키가 듣지 않음(한 번 클릭하면 됨) → 포커스를 못 가져오는 문제 수정.
+- 변경: `WindowFocusRestorer` 가 1초마다 `GetForegroundWindow` 의 프로세스가 이 앱인지 확인해 아니면 대기를 시작하고(`Application.isFocused` 는 true라 기존 경로가 시도하지 않았음), 맞으면 대기를 끝냄. `focusChanged(true)` 도 실제 포그라운드일 때만 대기를 끝냄. 토글 표시의 ON/OFF와 감시 상태 단어에 `<color>`(로그에는 없음), `StatusMessageOverlay` richText 켬. 버전 26.11.19-1.
+- Claude 확인: 검증 프로젝트(file: 참조, 배치 모드) PlayMode 191/191, Windows 플레이어 스크립트 컴파일 오류 0(보강 뒤 다시 확인). IMGUI `CalcSize` 가 태그를 빼고 재는지 측정: 색 넣은 글 163.2 = 색 없는 글 163.2(richText 끄면 402.4).
+- 교차 검증 (agy gemini-4-argon-high + 서브에이전트, 포그라운드 묶음): 대기 상태·로그 반복·시도 순서, `#if` 범위와 P/Invoke, F로 끈 동안 → 둘 다 통과. 서브에이전트 불확실: 복구가 거부되는데 Unity가 포커스 true를 알리면 대기가 풀렸다 다시 시작해 경고가 되풀이될 수 있음 → `focusChanged(true)` 에 포그라운드 확인을 넣음, 재확인 통과.
+- 서브에이전트 (색 묶음): 태그 짝·로그 분리·테스트 문자열·할당 → 통과. agy (문서 묶음): CHANGELOG·USAGE·버전 → 통과.
+- PR 리뷰(Claude `/code-review` high, #86, 6건): 문구·주석 3건(로그가 모든 경우를 감시 탓으로 적음, 확인 간격과 최소 재시도 간격의 관계, 확인하지 않은 CalcHeight 주장)은 바로 고침. 동작 3건은 사용자 지시("전부 고쳐")로 고침 → 보조 디스플레이 창이 앞이면 확인이 개입하지 않고 Unity 포커스 이벤트에 맡김(되찾을 창일 때만 대기를 끝냄), 첫 확인을 시작 1초 뒤로(항상 위는 시작 때 바로), 항상 위·포그라운드 1초 타이머를 하나로. 플레이어 컴파일 오류 0, PlayMode 191/191. 재리뷰 agy·서브에이전트 둘 다 통과.
+- 남은 것: 실제 빌드에서 감시가 다시 켠 앱이 포그라운드를 되찾는지는 확인하지 않음(화면 포커스를 가져가므로 사용자 허락 필요). 서브에이전트 불확실: 다중 디스플레이에서 `FindOwnUnityWindow` 가 z-order 첫 창(보조 창일 수 있음)을 되찾을 창으로 고르는 것은 이전부터 있던 동작이라 TODO로 넘김.
+
 ### [2026-11-18 23:55] Claude → Antigravity + 서브에이전트 · 응답 없음 판정 키를 hangRestartSeconds로 되돌림 (fix/hang-restart-seconds-name)
 - 요청: `autoRestartSeconds` 가 뜻과 맞지 않아 원래 이름 `hangRestartSeconds` 로 되돌리기(기본 30초는 유지).
 - 변경: `autoRestartSeconds` 필드·`SelectHangRestartSeconds`·예전 키 경고를 빼고 `hangRestartSeconds` 를 바로 읽음. 키 선택 테스트를 빼고 0으로 끄는 경우를 기본값 테스트에 넣음. SETTINGS·USAGE 키 이름, CHANGELOG 26.11.18-5(Breaking: -4에 맞춰 `autoRestartSeconds` 를 적은 프로젝트는 되돌릴 것).

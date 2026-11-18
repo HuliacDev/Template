@@ -1,6 +1,14 @@
 # Changelog
 모든 주요 변경 사항을 이 파일에 기록합니다.
 
+## [26.11.19-1] - 2026-11-19
+
+### Fixed
+- **자동 재시작 감시가 다시 켠 앱이 키 입력을 받지 못하던 문제 수정(`Runtime/Core/WindowFocusRestorer.cs`):** 숨은 PowerShell(감시)이 켠 앱은 Windows가 앞으로 내보내지 않아, 화면에 보여도 한 번 클릭하기 전까지 키 입력(단축키·스캐너)이 다른 창으로 갔음. 이때 Unity는 포커스가 있다고 봐(`Application.isFocused` true) 포커스 복구가 시도하지 않았음. 1초마다 실제 포그라운드 창(`GetForegroundWindow`)이 이 앱의 창인지 확인해, 아니면 포커스를 잃은 것처럼 `focusRestoreDelay`초 뒤 되찾고, 돌아왔으면 대기를 끝냄. Unity가 포커스를 얻었다고 알려도 실제 포그라운드가 이 앱의 창이 아니면(복구 시도가 거부된 경우 등) 계속 기다려, 대기가 풀렸다 다시 시작되며 경고가 되풀이되지 않게 함. 보조 디스플레이 창(`Display.Activate`) 등 이 앱의 다른 창이 앞에 있으면 이 확인은 아무것도 하지 않고 예전처럼 Unity의 포커스 이벤트를 따름(그 창으로 키 입력이 가는지는 알 수 없기 때문). 막 켜진 창을 Windows가 활성화하기 전에 잘못 판단하지 않도록 첫 확인은 시작 1초 뒤에 하고, 항상 위는 시작할 때 바로 적용함. 항상 위 재확인과 같은 1초 주기로 돎. 포커스 복구를 `F`로 꺼 두면 확인하지 않음. Windows 빌드에서만 도는 코드라 테스트를 추가하지 않음.
+
+### Changed
+- **`F` 키 표시의 켜짐·꺼짐에 색을 입힘(`Runtime/Core/WindowFocusRestorer.cs`, `Runtime/Core/StatusMessageOverlay.cs`):** `ON`은 초록, `OFF`는 빨강, 감시 상태 줄의 `watching`·`starting`·`off`는 초록·노랑·빨강으로 그려 한눈에 구분되게 함. 표시 상자가 IMGUI 리치 텍스트(`<color>`)를 그리도록 `richText`를 켬. 로그에는 색 태그를 넣지 않음. `WindowFocusRestorerTests`에 1건 추가.
+
 ## [26.11.18-5] - 2026-11-18
 
 ### Changed
