@@ -11,6 +11,7 @@
 
 ## 완료
 
+- [x] 응답 없음 판정 키를 `autoRestartSeconds` 로 바꾸고 기본값을 30초로 줄임(예전 키 `hangRestartSeconds` 는 새 키가 없을 때만 읽고 경고) — 완료: 2026-11-18 (#84)
 - [x] `F` 키 표시 상자가 화면 60%로 고정이라 포커스 줄이 두세 줄로 접히던 것. 상자 너비를 가장 긴 줄에 맞추고 넘치면 글자를 줄여 포커스 줄·감시 줄이 각각 한 줄로 보이게 함 — 완료: 2026-11-18 (#82)
 - [x] `F` 키 표시에 자동 재시작 감시 상태(`Watchdog: watching|starting|off`)와 감시가 다시 켜는 경우를 둘째 줄로 추가해, `F`로 꺼도 크래시·응답 없음 재시작은 남는다는 것을 알 수 있게 함 — 완료: 2026-11-18 (#81)
 - [x] 숨은 종료 버튼(`GameCloser`)·`closeSetting` 을 없애고 앱 끄기를 Alt+F4로 모음. 자동 재시작 감시가 Alt+F4로 끈 앱도 다시 켜고(종료 코드 76) `F` 키로 포커스 복구와 함께 끄고 켬. 서버 로그를 `start (user restart)`·`start (auto restart)`·`end (Alt + F4)`·`end (Shutdown Scheduler)`·`end_kill (Task Scheduler)` 로 바꿈 — 완료: 2026-11-18 (#80)
