@@ -4,6 +4,12 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
 
 ---
 
+### [2026-11-19 01:10] Claude → Antigravity · README에 오늘 바뀐 운영 내용 반영 (docs/readme-altf4-watchdog)
+- 요청: Template·0_Startup README를 각각 맞는 내용으로 갱신.
+- 변경: README에 `F` 키 표시(ON/OFF와 감시 상태), 앱 끄는 법(숨은 종료 버튼 없음, `F` 로 끈 뒤 Alt+F4), 서버 로그 문구, 예약 종료 편집 도구를 다시 빌드해 현장 PC에서 저장해야 가드 스크립트가 바뀌는 점을 보탬. 문서만 바뀌어 버전·CHANGELOG는 그대로.
+- agy (gemini-4-argon-high): 설명과 코드(로그 상수·표시 문구·편집 도구 저장 시 백업 작업 갱신) 일치, 링크 앵커, 공개 저장소 규칙·다섯 칸 구조 → 통과
+- 남은 것: 없음.
+
 ### [2026-11-19 00:20] Claude → Antigravity + 서브에이전트 · F 키 표시의 각 줄을 한 줄로 (feat/toggle-status-one-line)
 - 요청: F 키 표시에서 포커스 줄과 감시 줄이 각각 한 줄에 들어오게(상자 너비가 화면 60% 고정이라 포커스 줄이 두세 줄로 접혔음).
 - 변경: `StatusMessageOverlay` 가 `CalcSize` 로 가장 긴 줄 너비를 재어 상자 너비를 맞추고(화면 90%까지), 넘치면 `ResolveFitFontSize` 로 글자를 비례해 줄임(기본 크기 60%·최소 16 아래로는 줄이지 않고 줄 바꿈). 문구는 그대로. 버전 26.11.18-3.
