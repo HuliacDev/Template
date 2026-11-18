@@ -46,11 +46,30 @@ namespace HuliacDev.Core
     /// </summary>
     public sealed class AutoRestartWatchdog : IStartable, IDisposable
     {
+        /// <summary>토글 키 표시에 쓰는 감시 상태.</summary>
+        internal enum WatchStatus
+        {
+            /// <summary>감시가 없음(autoRestart 꺼짐, 에디터·다른 플랫폼, 실행 실패, 감시가 끝남).</summary>
+            Off,
+
+            /// <summary>감시를 띄웠지만 아직 지켜보기 시작했는지 정해지지 않음.</summary>
+            Starting,
+
+            /// <summary>감시가 이 앱을 지켜보고 있음.</summary>
+            Watching
+        }
+
         /// <summary>감시 스크립트가 다시 실행한 앱에 자기 PID를 알려 주는 환경 변수 이름. WatchdogScript와 맞춰야 함.</summary>
         internal const string WatchdogPidVariable = "HULIACDEV_AUTORESTART_WATCHDOG_PID";
 
         /// <summary>감시 스크립트가 다시 실행한 앱에 재시작 이유를 알려 주는 환경 변수 이름. WatchdogScript와 맞춰야 함.</summary>
         internal const string RestartReasonVariable = "HULIACDEV_AUTORESTART_REASON";
+
+        /// <summary>
+        /// 감시 스크립트가 다시 실행한 앱에 자기 응답 없음 판정 시간(초, 0이면 끔)을 알려 주는 환경 변수 이름. WatchdogScript와 맞춰야 함.
+        /// 다시 켜진 앱은 이미 떠 있는 감시를 그대로 쓰므로, 그사이 바뀐 Settings.json이 아니라 이 값으로 토글 키 표시를 정함.
+        /// </summary>
+        internal const string HangRestartSecondsVariable = "HULIACDEV_AUTORESTART_HANG_SECONDS";
 
         /// <summary>
         /// 앱이 감시에 다시 켜 달라고 요청하며 끝낼 때 쓰는 종료 코드(TryRequestRestart). 감시 스크립트가 이 값을 보고 AutoRestart.log와
@@ -144,6 +163,8 @@ if ($commandLine) {
 
 # 이 감시가 다시 실행한 앱이 감시를 또 띄우지 않도록 PID를 넘김(자식 프로세스는 환경 변수를 물려받음).
 $env:HULIACDEV_AUTORESTART_WATCHDOG_PID = [string]$PID
+# 다시 실행된 앱이 이 감시의 응답 없음 판정 시간을 알 수 있게 넘김(그사이 Settings.json이 바뀌어도 이 감시는 이 값을 씀).
+$env:HULIACDEV_AUTORESTART_HANG_SECONDS = [string]$HangRestartSeconds
 
 # 다시 실행된 앱이 위 PID가 정말 이 감시인지(감시가 끝난 뒤 다른 프로세스가 PID를 재사용한 게 아닌지) 확인하도록,
 # 감시가 사는 동안 이름 있는 이벤트를 열어 둠. 감시가 끝나면 Windows가 닫아 이름이 사라짐.
@@ -297,6 +318,12 @@ while ($true) {
         /// </summary>
         private static bool _isAltF4RestartOn;
 
+        /// <summary>
+        /// 이 앱을 지켜보는 감시의 응답 없음 감지가 켜져 있는지. 감시를 띄울 때 넘긴 값이거나, 이미 떠 있는 감시를 쓰면 그 감시가 환경 변수로 넘긴 값.
+        /// 토글 키 표시에서 감시가 무엇을 다시 켜는지 알리는 데 씀.
+        /// </summary>
+        private static bool _isHangRestartOn;
+
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
         /// <summary>GetSystemMetrics의 SM_SHUTTINGDOWN. 0이 아니면 Windows가 종료·로그오프 중임(감시 스크립트와 같은 값).</summary>
         private const int SmShuttingDown = 0x2000;
@@ -431,18 +458,21 @@ while ($true) {
         /// <summary>Alt+F4 재시작이 켜져 있으면 true. 토글 키를 가진 WindowFocusRestorer가 정함.</summary>
         internal static bool IsAltF4RestartOn => _isAltF4RestartOn;
 
+        /// <summary>이 앱을 지켜보는 감시의 응답 없음 감지가 켜져 있으면 true(판정 시간이 0이 아님). 토글 키 표시에 씀.</summary>
+        internal static bool IsHangRestartOn => _isHangRestartOn;
+
         /// <summary>
-        /// 감시가 지켜보고 있거나 지켜보기 시작하는 중이면 true(Alt+F4 재시작이 적용되거나 곧 적용됨). 토글 키 표시에 씀.
-        /// IsWatching처럼 OS에 물으므로 매 프레임이 아니라 토글할 때만 부를 것.
+        /// 감시 상태. 토글 키 표시에 씀. IsWatching처럼 OS에 물으므로 매 프레임이 아니라 토글할 때만 부를 것.
         /// </summary>
-        internal static bool IsWatchingOrStarting
+        internal static WatchStatus CurrentWatchStatus
         {
             get
             {
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-                return _isWatchStarting || IsWatching;
+                if (IsWatching) return WatchStatus.Watching;
+                return _isWatchStarting ? WatchStatus.Starting : WatchStatus.Off;
 #else
-                return false;
+                return WatchStatus.Off;
 #endif
             }
         }
@@ -604,6 +634,8 @@ while ($true) {
             {
                 // 감시는 앱을 다시 실행하자마자 앱 핸들을 열어 두므로 이미 지켜보는 중임.
                 _hasLaunched = true;
+                // 이 감시는 처음 띄울 때 받은 응답 없음 판정 시간을 계속 쓰므로 감시가 넘긴 값을 따름.
+                _isHangRestartOn = AutoRestartPolicy.IsHangRestartOn(Environment.GetEnvironmentVariable(HangRestartSecondsVariable));
                 BeginWatching(runningWatchdog);
                 WatchDecided.TrySetResult();
                 if (_logger != null) _logger.ZLogInformation($"[AutoRestartWatchdog] Already watched by the watchdog that restarted this app (pid {runningWatchdog.Id}).");
@@ -611,6 +643,7 @@ while ($true) {
             }
 
             int hangRestartSeconds = AutoRestartPolicy.ResolveHangRestartSeconds(setting.hangRestartSeconds);
+            _isHangRestartOn = hangRestartSeconds > 0;
             int restartDelaySeconds = AutoRestartPolicy.ResolveRestartDelaySeconds(setting.restartDelaySeconds);
             // persistentDataPath는 '/' 구분자를 쓰므로 로그·명령줄에 섞이지 않게 Windows 형식으로 맞춤.
             string scriptPath = Path.GetFullPath(Path.Combine(persistentDataPath, ScriptFileName));

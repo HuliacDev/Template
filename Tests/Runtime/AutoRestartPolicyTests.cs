@@ -91,6 +91,20 @@ namespace HuliacDev.Tests
         {
             StringAssert.Contains("$env:" + AutoRestartWatchdog.WatchdogPidVariable + " =", AutoRestartWatchdog.WatchdogScript);
             StringAssert.Contains("$env:" + AutoRestartWatchdog.RestartReasonVariable + " =", AutoRestartWatchdog.WatchdogScript);
+            StringAssert.Contains("$env:" + AutoRestartWatchdog.HangRestartSecondsVariable + " = [string]$HangRestartSeconds", AutoRestartWatchdog.WatchdogScript);
+        }
+
+        /// <summary>
+        /// 다시 켜진 앱은 감시가 넘긴 응답 없음 판정 시간으로 토글 표시의 hang 여부를 정함. 0이면 꺼짐이고,
+        /// 값이 없거나 숫자가 아니면(이 값을 넘기지 않던 예전 감시) 기본값(60초)처럼 켜진 것으로 봐야 함.
+        /// </summary>
+        [Test]
+        public void 감시가_넘긴_응답_없음_판정_시간으로_감지_여부를_정한다()
+        {
+            Assert.IsTrue(AutoRestartPolicy.IsHangRestartOn("60"));
+            Assert.IsFalse(AutoRestartPolicy.IsHangRestartOn("0"), "응답 없음 감지를 끈 감시를 켜진 것으로 봄");
+            Assert.IsTrue(AutoRestartPolicy.IsHangRestartOn(null), "값을 넘기지 않던 감시를 꺼진 것으로 봄");
+            Assert.IsTrue(AutoRestartPolicy.IsHangRestartOn(string.Empty));
         }
 
         /// <summary>

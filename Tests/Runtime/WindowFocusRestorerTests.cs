@@ -136,6 +136,26 @@ namespace HuliacDev.Tests
         }
 
         /// <summary>
+        /// 토글 표시 둘째 줄은 감시 상태를 알리고, 토글 키로 꺼도 크래시·응답 없음 재시작은 남는다는 것과 응답 없음 감지가 꺼진 경우를 구분해야 함.
+        /// 감시가 없으면(에디터 포함) 꺼짐으로 알려야 함.
+        /// </summary>
+        [Test]
+        public void 감시_상태_줄은_다시_켜는_경우를_상태에_맞게_적는다()
+        {
+            Assert.AreEqual("Watchdog: watching (restarts after crash, hang or Alt+F4)",
+                WindowFocusRestorer.BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus.Watching, true, true));
+            Assert.AreEqual("Watchdog: watching (still restarts after crash or hang)",
+                WindowFocusRestorer.BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus.Watching, false, true));
+            Assert.AreEqual("Watchdog: watching (restarts after crash or Alt+F4)",
+                WindowFocusRestorer.BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus.Watching, true, false));
+            Assert.AreEqual("Watchdog: starting (still restarts after crash)",
+                WindowFocusRestorer.BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus.Starting, false, false));
+            Assert.AreEqual("Watchdog: off (disabled, Editor or not running - see AutoRestart.log)",
+                WindowFocusRestorer.BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus.Off, true, true));
+            Assert.AreEqual(AutoRestartWatchdog.WatchStatus.Off, AutoRestartWatchdog.CurrentWatchStatus, "에디터에서는 감시가 없음");
+        }
+
+        /// <summary>
         /// 토글 키(TemplateInputActions)를 넣거나 뺀 컨테이너를 만듦. 컨테이너를 해제하면 입력 액션도 함께 해제됨.
         /// </summary>
         private static IObjectResolver BuildResolver(bool withInputActions)
