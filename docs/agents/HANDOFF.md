@@ -10,7 +10,9 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
 - Claude 확인: 검증 프로젝트(file: 참조, 배치 모드) PlayMode 189/189, 컴파일 경고 0, Windows 플레이어 스크립트 컴파일 성공.
 - 교차 검증 (agy gemini-4-argon-high + 서브에이전트, 1묶음):
   - 문구 조합·감시 상태 일관성, 오버레이 할당·높이·컴파일 → agy 통과. 서브에이전트: hang 표시가 다시 켜진 앱에서 실제 감시 값과 어긋날 수 있음, off 문구가 원인을 단정함(둘 다 낮음) → 감시가 판정 시간을 환경 변수로 넘기고 off 문구를 "disabled, Editor or not running - see AutoRestart.log"로 바꿈, 재검증 통과
-- 남은 것: 실제 Windows 빌드에서 표시는 확인하지 않음. `autoRestart.enabled` 를 false로 바꾼 뒤 감시가 다시 켠 실행은 떠 있는 감시를 확인하지 않아 표시가 off로 나옴(이전부터 있던 동작).
+- PR 리뷰(Claude `/code-review` high, #81, 3건) → 사용자 지시("1번만 고치기")로 감시가 뜨는 중(starting) 문구가 Alt+F4 재시작을 약속하던 것만 고침("Watchdog: starting (restarts apply once it is watching)"). 서브에이전트 재확인: 화면 문구는 통과, 주석·USAGE가 "어떤 종료도 다시 켜지 않음"으로 단정(낮음, 핸들을 연 뒤에는 크래시를 다시 켤 수 있음) → 표현을 고침. 나머지 2건(설정을 끈 뒤 다시 켜진 앱의 off 표시, 낮은 해상도에서 상자 크기)은 고치지 않음.
+  - Claude 확인: PlayMode 재실행에서 `InactivityTimerTests` 1건 실패(1초 제한에 0.6초+0.6초를 기다리는 시간 의존 테스트, 이번 변경과 공유 코드 없음) → 다시 실행 189/189 통과. 플레이어 스크립트 컴파일 성공.
+- 남은 것: 실제 Windows 빌드에서 표시는 확인하지 않음. `autoRestart.enabled` 를 false로 바꾼 뒤 감시가 다시 켠 실행은 떠 있는 감시를 확인하지 않아 표시가 off로 나옴(이전부터 있던 동작). `InactivityTimerTests` 의 시간 여유(0.2초)는 사용 중인 PC에서 흔들릴 수 있음.
 
 ### [2026-11-18 21:20] Claude → Antigravity + 서브에이전트 · 숨은 종료 버튼 제거와 Alt+F4 자동 재시작 (feat/altf4-auto-restart)
 - 요청: `GameCloser` 를 빼고(`Settings.json`·서버 로그 포함), Alt+F4 종료 로그를 `end (Alt + F4)` 로, 예약 종료 로그에서 by를 뺌. 감시가 Alt+F4로 끈 앱도 다시 켜되 `F` 키로 포커스 복구와 함께 끄고 켬. 감시가 켠 시작은 `start (auto restart)`, 사람이 다시 켜면 `start (user restart)`. 작업 스케줄러 문구도 by를 뺌.

@@ -176,12 +176,14 @@ namespace HuliacDev.Core
         /// <summary>
         /// 토글 표시 둘째 줄에 쓸 자동 재시작 감시 상태를 만듦. 토글 키로 꺼도 크래시·응답 없음 재시작은 남는다는 것을 알려,
         /// 점검 중 감시가 모두 꺼졌다고 오해하지 않게 함. 감시가 무엇을 다시 켜는지는 Alt+F4 재시작과 응답 없음 감지가 켜져 있는지에 따라 적음.
+        /// 감시가 뜨는 중에는 Alt+F4를 다시 켜지 않고, 크래시도 감시가 앱을 잡기 전이면 다시 켜지 않을 수 있으므로 무엇을 다시 켜는지 적지 않음.
         /// </summary>
         internal static string BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus status, bool isAltF4RestartOn, bool isHangRestartOn)
         {
             if (status == AutoRestartWatchdog.WatchStatus.Off) return "Watchdog: off (disabled, Editor or not running - see AutoRestart.log)";
+            if (status == AutoRestartWatchdog.WatchStatus.Starting) return "Watchdog: starting (restarts apply once it is watching)";
 
-            string state = status == AutoRestartWatchdog.WatchStatus.Watching ? "Watchdog: watching" : "Watchdog: starting";
+            string state = "Watchdog: watching";
             string restarts;
             if (isAltF4RestartOn)
             {
