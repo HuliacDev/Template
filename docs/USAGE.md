@@ -194,7 +194,7 @@ _tcp.Send("S2\n");   // 줄 끝 문자는 붙이지 않으므로 장치가 줄 �
 `RootLifetimeScope`가 `WindowFocusRestorer`를 자동으로 만들므로 씬 배치나 등록 코드는 필요 없습니다. 앱이 포커스를 잃으면 `focusRestoreDelay`초 뒤 앱 창을 다시 앞으로 가져오고, 포커스가 돌아올 때까지 `focusRestoreRetryInterval`초마다 다시 시도합니다.
 
 - **Windows 스탠드얼론 빌드에서만 동작합니다.** 에디터와 다른 플랫폼에서는 아무것도 하지 않습니다.
-- **앱을 켜면 켜진 상태로 시작하고, `F` 키(ToggleFocusRestore)로 끄고 켭니다.** 유지보수 중 다른 프로그램을 써야 하면 앱에서 `F`를 눌러 끄고, 끝나면 다시 눌러 켭니다. 앱을 다시 시작하면 켜진 상태로 돌아갑니다. 끄고 켤 때 로그가 남고, 화면 위쪽에 켜짐·꺼짐이 2초 동안 표시됩니다(끌 때는 다시 켜는 키도 함께 표시). 꺼 둔 동안 포커스를 잃으면 "꺼져 있어 창을 되돌리지 않는다"는 로그가 남습니다.
+- **앱을 켜면 켜진 상태로 시작하고, `F` 키(ToggleFocusRestore)로 끄고 켭니다.** 유지보수 중 다른 프로그램을 써야 하면 앱에서 `F`를 눌러 끄고, 끝나면 다시 눌러 켭니다. 같은 키로 [자동 재시작](#자동-재시작-autorestartwatchdog-windows-전용)의 Alt+F4 재시작도 함께 끄고 켭니다. 앱을 다시 시작하면 켜진 상태로 돌아갑니다. 끄고 켤 때 로그가 남고, 화면 위쪽에 켜짐·꺼짐이 2초 동안 표시됩니다(끌 때는 다시 켜는 키도 함께 표시). 꺼 둔 동안 포커스를 잃으면 "꺼져 있어 창을 되돌리지 않는다"는 로그가 남습니다.
 - `Settings.json`에서는 타이밍만 조정합니다([SETTINGS.md](SETTINGS.md) 참고). 파일을 읽지 못하면 기본 타이밍(3초/3초)으로 동작합니다.
 - Player Settings의 **Run In Background**가 켜져 있어야 합니다. 꺼져 있으면 포커스를 잃은 동안 플레이어가 멈춰 복구할 수 없으며, 시작 시 경고 로그가 남습니다.
 - Windows의 포그라운드 잠금 때문에 `SetForegroundWindow`만으로는 거부되는 경우가 많아, 현재 포그라운드 창의 스레드에 입력을 잠시 붙여(`AttachThreadInput`) 창을 올립니다. 단 포그라운드 창이 응답 없음 상태면 붙이지 않습니다(멈춘 창과 입력을 공유하면 앱도 함께 멈출 수 있음). 그래도 잠금 화면, UAC 확인 창, 관리자 권한으로 실행된 창이 앞에 있으면 Windows가 막을 수 있습니다. 실패하면 포커스를 잃을 때마다 처음 한 번만 경고 로그를 남기고 계속 재시도합니다.
@@ -207,16 +207,16 @@ _tcp.Send("S2\n");   // 줄 끝 문자는 붙이지 않으므로 장치가 줄 �
 - 기본값은 꺼짐(`false`)이며, 생략하면 기존 동작과 같습니다. `Settings.json`을 읽지 못해 대체 설정으로 동작할 때도 꺼집니다.
 - 앱을 시작할 때 한 번 읽으므로, 값을 바꾸면 앱을 다시 시작해야 합니다(`AppSettingsProvider.ReloadAsync`로 다시 읽어도 반영되지 않으며, 포커스 복구 타이밍도 같습니다).
 - 포커스 복구와 함께 동작합니다. 항상 위는 화면 가림만 막고 키보드 포커스는 옮기지 않으므로, 스캐너 입력은 계속 포커스 복구가 되찾습니다.
-- **`F` 키(ToggleFocusRestore)로 포커스 복구와 함께 끄고 켭니다.** 켜 두면 작업 관리자·오류 창·다른 프로그램도 앱 뒤에 가려지므로, 점검할 때는 `F`로 끄고 작업한 뒤 다시 켜세요. 화면 위쪽에는 "Focus restore and always on top ON/OFF"가 표시되고, 앱을 다시 시작하면 켜진 상태로 돌아갑니다. 앱을 끌 때는 Alt+F4나 숨은 종료 버튼(`GameCloser`)을 씁니다.
+- **`F` 키(ToggleFocusRestore)로 포커스 복구와 함께 끄고 켭니다.** 켜 두면 작업 관리자·오류 창·다른 프로그램도 앱 뒤에 가려지므로, 점검할 때는 `F`로 끄고 작업한 뒤 다시 켜세요. 화면 위쪽에는 "Focus restore and always on top ON/OFF"(자동 재시작 감시가 지켜보고 있으면 "Focus restore, always on top and Alt+F4 restart ON/OFF")가 표시되고, 앱을 다시 시작하면 켜진 상태로 돌아갑니다. 앱을 끌 때는 `F`로 끈 뒤 Alt+F4를 누릅니다.
 - `Display.Activate`로 연 보조 디스플레이 창에도 함께 적용하고, `F`로 끌 때도 함께 풉니다. 보조 창을 열면 메인 창의 항상 위가 풀리기도 하므로, 1초마다 확인해 항상 위가 아닌 창만 다시 적용합니다.
 - 이미 항상 위인 다른 창(화상 키보드, '항상 위' 옵션을 켠 작업 관리자 등)과는 순서를 다투지 않으므로, 그런 창이 나중에 뜨면 앱 위에 보일 수 있습니다. 잠금 화면과 UAC 확인 창도 앱 위에 뜹니다.
 - Windows 스탠드얼론 빌드에서만 동작하며, 에디터에서는 적용하지 않습니다.
 
-> **바코드·QR 스캐너 주의:** 스캐너는 읽은 값을 키 입력으로 보내므로, 값에 대문자 `F`가 있으면 포커스 복구(항상 위를 켰으면 항상 위도 함께)가 꺼집니다(`D`·`I`·`M` 단축키도 같은 문제가 있습니다). 스캐너를 쓰는 프로젝트는 [단축키](#단축키-기본-제공)의 예시처럼 Ctrl 조합으로 바꾸세요. 스캐너는 Ctrl을 보내지 않습니다.
+> **바코드·QR 스캐너 주의:** 스캐너는 읽은 값을 키 입력으로 보내므로, 값에 대문자 `F`가 있으면 포커스 복구(항상 위를 켰으면 항상 위도 함께)와 Alt+F4 재시작이 꺼집니다(`D`·`I`·`M` 단축키도 같은 문제가 있습니다). 스캐너를 쓰는 프로젝트는 [단축키](#단축키-기본-제공)의 예시처럼 Ctrl 조합으로 바꾸세요. 스캐너는 Ctrl을 보내지 않습니다.
 
 ## 자동 재시작 (AutoRestartWatchdog, Windows 전용)
 
-현장용 빌드가 크래시하거나 강제로 꺼지거나 '응답 없음'으로 멈췄을 때 앱을 다시 실행합니다. `Settings.json`에 아래처럼 적으면 켜집니다. 키가 없으면 꺼져 있어 기존 동작과 같습니다.
+현장용 빌드가 크래시하거나 강제로 꺼지거나 '응답 없음'으로 멈췄을 때, 그리고 Alt+F4로 껐을 때 앱을 다시 실행합니다. `Settings.json`에 아래처럼 적으면 켜집니다. 키가 없으면 꺼져 있어 기존 동작과 같습니다.
 
 ```json
 "autoRestart": { "enabled": true, "hangRestartSeconds": 60, "restartDelaySeconds": 5 }
@@ -224,15 +224,17 @@ _tcp.Send("S2\n");   // 줄 끝 문자는 붙이지 않으므로 장치가 줄 �
 
 `RootLifetimeScope`가 `AutoRestartWatchdog`를 자동으로 만들므로 씬 배치나 등록 코드, 현장 PC의 설치·작업 스케줄러 등록은 필요 없습니다. 앱이 시작할 때 감시 스크립트(`AutoRestartWatchdog.ps1`, `persistentDataPath`에 매번 새로 씀)를 창 없는 PowerShell로 띄우고, 감시 스크립트가 앱 프로세스를 지켜봅니다.
 
-- **종료 코드로 구분합니다.** 숨은 종료 버튼(`GameCloser`), 예약 종료(`ShutdownScheduler`), Alt+F4·창 닫기는 모두 `Application.Quit` 경로로 끝나 종료 코드가 0이므로 다시 켜지지 않고 감시도 함께 끝납니다. 크래시(예: `0xC0000005`)와 `taskkill /F`처럼 프로세스를 바로 끝낸 경우(1)는 0이 아니므로 `restartDelaySeconds`초 뒤 같은 실행 파일과 인수로 다시 켭니다. 앱이 스스로 다시 켜져야 할 때는 아래 "프로젝트 코드에서 쓰기"의 `TryRequestRestart`를 씁니다. 씬에 `ApiManagerBase`를 둔 프로젝트에서 `Application.Quit(코드)`만 부르면 `ApiManagerBase`가 종료 로그를 보낸 뒤 종료 코드 0으로 끝내 다시 켜지지 않습니다. 직접 0이 아닌 코드로 끝내려면 `QuitReason.Set(사유, 코드)`를 먼저 부릅니다.
+- **종료 코드로 구분합니다.** 예약 종료(`ShutdownScheduler`)처럼 `QuitReason.Set(사유)`를 적고 `Application.Quit`으로 끝내면 종료 코드가 0이므로 다시 켜지지 않고 감시도 함께 끝납니다. 크래시(예: `0xC0000005`)와 `taskkill /F`처럼 프로세스를 바로 끝낸 경우(1)는 0이 아니므로 `restartDelaySeconds`초 뒤 같은 실행 파일과 인수로 다시 켭니다. 앱이 스스로 다시 켜져야 할 때는 아래 "프로젝트 코드에서 쓰기"의 `TryRequestRestart`를 씁니다. `Application.Quit(코드)`만 부르면 씬에 `ApiManagerBase`가 있거나 감시가 지켜보고 Alt+F4 재시작이 켜져 있을 때 그 코드가 아니라 Alt+F4와 같은 종료 코드로 끝납니다. 직접 0이 아닌 코드로 끝내려면 `QuitReason.Set(사유, 코드)`를 먼저 부릅니다.
+- **Alt+F4도 다시 켭니다.** 사유를 적지 않은 종료(Alt+F4·창 닫기)는 종료 코드 76(`AltF4ExitCode`)으로 끝나 `restartDelaySeconds`초 뒤 다시 켜집니다. 점검하려고 앱을 끌 때는 `F` 키로 먼저 끕니다(화면 위쪽에 "... and Alt+F4 restart OFF" 표시). 그러면 Alt+F4가 종료 코드 0으로 끝나 다시 켜지지 않고, 앱을 다시 켜면 켜진 상태로 돌아갑니다. `F` 키(`WindowFocusRestorer`)가 없는 프로젝트(`ConfigureWindowFocus`를 빈 본문으로 override 등)는 끌 방법이 없으므로 Alt+F4를 다시 켜지 않습니다. `ConfigureInputBindings`에서 ToggleFocusRestore 바인딩을 지우면 끌 키 없이 Alt+F4 재시작이 켜지므로, 지우지 말고 다른 키로 바꿉니다. 프로젝트 코드가 일부러 앱을 끌 때는 `QuitReason.Set(사유)`를 먼저 부릅니다. 부르지 않고 `Application.Quit()`만 부르면 Alt+F4로 보고 다시 켭니다.
+- **서버 로그:** `ApiManagerBase`를 쓰면 감시가 다시 켠 실행은 시작 로그를 `start (auto restart)`로, 같은 날 사람이 다시 켠 실행은 `start (user restart)`로, 그날 처음 켠 실행은 `start`로 보냅니다. 종료 로그는 `end (Alt + F4)`·`end (Shutdown Scheduler)`처럼 사유를 괄호에 넣습니다.
 - **응답 없음:** 창이 Windows에 '응답 없음'으로 판정된 상태(메시지를 5초 넘게 처리하지 못함)가 `hangRestartSeconds`초 이어지면 강제로 끄고 다시 켭니다. 큰 씬·영상 로딩으로 잠깐 막혀도 걸리지 않도록 기본 60초이며, 0이면 이 감지를 끕니다.
 - **켜자마자 계속 끝나면** 앱이 60초 안에 끝나는 일이 이어질 때 두 번째부터 재시작 간격을 두 배씩 늘립니다(5초 → 10초 → 20초 …, 최대 10분). 크래시마다 Unity가 덤프를 남기므로 설정 오류 등으로 시작하자마자 죽는 상태에서 디스크가 차지 않게 하기 위함입니다. 60초 넘게 실행되면 간격이 원래대로 돌아옵니다.
 - Windows가 종료·로그오프 중이면 다시 켜지 않습니다.
 - 다시 켠 앱도 같은 감시 스크립트가 계속 지켜봅니다. 다시 켜진 앱은 시작 로그에 "Restarted by the watchdog ... (exit code -1073741819 (0xC0000005))"처럼 이유를 경고로 남기고(코드에서는 `RestartReason`), 감시를 또 띄우지 않습니다.
 - 감시 스크립트가 시작·재시작·종료한 시각과 이유는 앱 로그 폴더(`persistentDataPath/Logs`)의 `AutoRestart.log`에 남습니다.
-- 값은 앱을 시작할 때 감시 스크립트에 넘기므로, 바꾸면 앱을 정상 종료(Alt+F4 등)한 뒤 다시 켜야 반영됩니다. 크래시로 다시 켜진 동안에는 처음 띄운 감시의 값이 그대로 쓰입니다.
-- 점검 등으로 앱을 끄려면 Alt+F4나 숨은 종료 버튼을 씁니다.
-- 작업 관리자의 '작업 끝내기'는 앱이 응답하면 창 닫기와 같은 종료 요청을 보내는 것으로 보여(같은 Windows API `EndTask`로 시험), 앱이 정상 종료하면 다시 켜지지 않습니다. 앱이 응답하지 않을 때는 강제로 끝나므로 다시 켜지고, 응답 없음 감지도 따로 동작합니다.
+- 값은 앱을 시작할 때 감시 스크립트에 넘기므로, 바꾸면 `F`로 Alt+F4 재시작을 끄고 Alt+F4로 끈 뒤 다시 켜야 반영됩니다. 크래시로 다시 켜진 동안에는 처음 띄운 감시의 값이 그대로 쓰입니다.
+- 점검 등으로 앱을 끄려면 `F`로 Alt+F4 재시작을 끈 뒤 Alt+F4를 누릅니다.
+- 작업 관리자의 '작업 끝내기'는 앱이 응답하면 창 닫기와 같은 종료 요청을 보내는 것으로 보여(같은 Windows API `EndTask`로 시험), Alt+F4와 같이 `F`로 끄지 않았으면 다시 켜집니다. 앱이 응답하지 않을 때는 강제로 끝나므로 다시 켜지고, 응답 없음 감지도 따로 동작합니다.
 - 크래시가 이어져 재시작을 기다리는 동안에는 끌 앱 창이 없습니다. 이때 재시작을 멈추려면 감시 스크립트를 끝냅니다. 작업 관리자 **세부 정보** 탭의 열 머리글을 오른쪽 클릭해 **명령줄** 열을 켜고, 명령줄에 `AutoRestartWatchdog.ps1`이 있는 `powershell.exe`를 끝냅니다. `autoRestart.enabled`를 false로 바꾸는 것만으로는 이미 떠 있는 감시가 멈추지 않습니다.
 - 재시작을 기다리는 동안 앱을 직접 켜도 됩니다. 직접 켠 앱이 감시를 새로 띄우고, 대기가 끝나 예전 감시가 실행한 앱은 Player Settings의 **Force Single Instance** 때문에 곧바로 정상 종료(종료 코드 0)되므로 예전 감시도 함께 끝납니다. 이때 이미 떠 있는 앱 창이 한 번 앞으로 올 수 있습니다. 감시는 기다리는 동안 앱이 켜졌는지 확인하지 않으므로, Force Single Instance를 끈 프로젝트에서는 앱이 두 개 뜹니다.
 - 그룹 정책으로 PowerShell 스크립트 실행을 막아 둔 PC에서는 감시가 뜨지 않을 수 있습니다. 앱을 켠 뒤 `AutoRestart.log`에 "Watching" 줄이 생기는지 확인합니다.
@@ -245,10 +247,10 @@ _tcp.Send("S2\n");   // 줄 끝 문자는 붙이지 않으므로 장치가 줄 �
 
 | API | 설명 |
 |-----|------|
-| `WasRestarted` / `RestartReason` | 이번 실행이 감시가 다시 켠 실행인지와 그 이유(`"exit code -1073741819 (0xC0000005)"`, `"not responding for 60s"`, `"restart requested by the app (exit code 75)"`). 다시 켠 실행이 아니면 false / null |
+| `WasRestarted` / `RestartReason` | 이번 실행이 감시가 다시 켠 실행인지와 그 이유(`"exit code -1073741819 (0xC0000005)"`, `"not responding for 60s"`, `"restart requested by the app (exit code 75)"`, `"closed with Alt+F4 (exit code 76)"`). 다시 켠 실행이 아니면 false / null |
 | `IsWatching` | 감시가 지금 이 앱을 지켜보는지. 감시를 띄운 직후 감시가 앱을 잡을 때까지(보통 몇 초), 꺼져 있거나 에디터이거나 감시 실행에 실패했거나 감시가 끝났으면 false |
 | `WaitUntilWatchingAsync(token)` | 감시를 띄울지와 띄운 감시가 지켜보기 시작했는지가 정해질 때까지 기다린 뒤 `IsWatching`을 돌려줌. `ConfigureAutoRestart`를 빈 본문으로 override하면 끝나지 않으므로 시간 제한 토큰을 넘김. 토큰이 취소되면 `OperationCanceledException`이고, 그 뒤 코드는 취소가 일어난 스레드에서 이어지므로 시간 제한은 `CancelAfterSlim`(PlayerLoop에서 취소)으로 검 |
-| `TryRequestRestart(reason)` | 감시가 지켜보고 있으면 종료 코드 75(`RestartRequestedExitCode`)로 끝내 `restartDelaySeconds`초 뒤 다시 켜지게 하고 true. 지켜보고 있지 않거나 다른 종료(숨은 종료 버튼·예약 종료·Alt+F4)가 이미 진행 중이면 끄지 않고 false. 종료 로그에는 `end (by {reason})`로 남음 |
+| `TryRequestRestart(reason)` | 감시가 지켜보고 있으면 종료 코드 75(`RestartRequestedExitCode`)로 끝내 `restartDelaySeconds`초 뒤 다시 켜지게 하고 true. 지켜보고 있지 않거나 다른 종료(예약 종료·Alt+F4)가 이미 진행 중이면 끄지 않고 false. 종료 로그에는 `end ({reason})`로 남음 |
 
 ```csharp
 // 예: 모니터가 다시 연결되면 앱을 다시 켜서 해상도를 새로 잡음. 앱 시작 직후에도 부를 수 있으면 먼저 감시 결과를 기다림.
@@ -265,7 +267,7 @@ if (!isCanceled && isWatching && !AutoRestartWatchdog.WasRestarted)
 }
 ```
 
-앱이 60초 안에 다시 요청하는 일이 이어지면 크래시와 같이 재시작 간격을 두 배씩 늘립니다. 프로젝트가 직접 `Application.wantsToQuit`에서 false를 돌려 종료를 취소(확인 창 등)한다면 취소할 때 `QuitReason.Clear()`를 부릅니다. 부르지 않으면 취소된 재시작 요청의 종료 코드 75가 남아, 이후 Alt+F4로 끌 때 감시가 다시 켭니다.
+앱이 60초 안에 다시 요청하는 일이 이어지면 크래시와 같이 재시작 간격을 두 배씩 늘립니다. 프로젝트가 직접 `Application.wantsToQuit`에서 false를 돌려 종료를 취소(확인 창 등)한다면 취소할 때 `QuitReason.Clear()`를 부릅니다. 부르지 않으면 종료가 진행 중인 상태로 남아 `TryRequestRestart`가 계속 false를 돌려주고, 이후 종료의 종료 코드도 의도와 달라집니다(예: `ApiManagerBase`가 있으면 `F`로 끈 뒤 Alt+F4로 꺼도 다시 켜지고, 없으면 `F`를 켜 둔 Alt+F4도 다시 켜지지 않음).
 
 ## 예약 종료 (ShutdownScheduler)
 
@@ -284,7 +286,7 @@ if (!isCanceled && isWatching && !AutoRestartWatchdog.WasRestarted)
 | `D` | Reporter 로그 뷰어 토글 (ToggleDebug) |
 | `I` | 런타임 인스펙터 토글 (ToggleInspector) |
 | `M` | 커서 표시 토글 (ToggleMouse) |
-| `F` | 창 포커스 복구 끄기/켜기, `alwaysOnTop`을 켰으면 항상 위도 함께 (ToggleFocusRestore) |
+| `F` | 창 포커스 복구 끄기/켜기, `alwaysOnTop`을 켰으면 항상 위도, 자동 재시작 감시가 있으면 Alt+F4 재시작도 함께 (ToggleFocusRestore) |
 
 > 기본 바인딩은 `Runtime/Input/TemplateInputActions.inputactions`에 있습니다. 패키지 파일을 고치지 말고, 프로젝트의 `RootLifetimeScope` 파생 클래스에서 `ConfigureInputBindings`를 override해 바꾸세요. 컨테이너가 `TemplateInputActions`를 만든 직후, 어떤 컴포넌트가 받아 켜기 전에 호출됩니다.
 

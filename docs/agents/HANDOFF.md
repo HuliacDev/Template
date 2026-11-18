@@ -4,6 +4,18 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
 
 ---
 
+### [2026-11-18 21:20] Claude → Antigravity + 서브에이전트 · 숨은 종료 버튼 제거와 Alt+F4 자동 재시작 (feat/altf4-auto-restart)
+- 요청: `GameCloser` 를 빼고(`Settings.json`·서버 로그 포함), Alt+F4 종료 로그를 `end (Alt + F4)` 로, 예약 종료 로그에서 by를 뺌. 감시가 Alt+F4로 끈 앱도 다시 켜되 `F` 키로 포커스 복구와 함께 끄고 켬. 감시가 켠 시작은 `start (auto restart)`, 사람이 다시 켜면 `start (user restart)`. 작업 스케줄러 문구도 by를 뺌.
+- 변경: `GameCloser`·`CloseSettingResolver`·`GameCloserTests`·`closeSetting`·SystemCanvas의 `GameClose` 자식 삭제. `QuitReason.User` → `AltF4`, `MarkQuitRequested(exitCode)`. `AutoRestartWatchdog` 에 `AltF4ExitCode`(76)·Alt+F4 종료 처리기·`SetAltF4Restart`, 감시 스크립트 76 분기. `WindowFocusRestorer` 토글이 Alt+F4 재시작도 바꿈. `ApiManagerBase` 시작·종료 문구(`BuildStartupMessage`·`BuildExitMessage`), 가드 스크립트 문구. 문서와 버전 26.11.18-1.
+- Claude 확인: 검증 프로젝트(file: 참조, 배치 모드라 화면을 띄우지 않음) PlayMode 183/183 통과, 컴파일 경고 0. Windows 플레이어 스크립트 컴파일(`PlayerBuildInterface.CompilePlayerScripts`) 성공, 리뷰 반영 뒤 다시 성공. SystemCanvas 프리팹 가져오기 오류 없음.
+- 교차 검증 (agy gemini-4-argon-high + 서브에이전트, 3묶음):
+  - `QuitReason`(진행 중 종료를 덮어쓰지 않음, 기본값, 남은 참조) → 둘 다 통과
+  - 감시 Alt+F4 흐름(처리기 순서·`ApiManagerBase` 유무, 예약 종료·재시작 요청, `#if`) → agy 통과. 서브에이전트: `ApiManagerBase` 없이 미룬 프레임에 창 닫기가 또 오면 종료 코드 0으로 끝남(낮음) → 미루는 동안 들어온 종료도 미루게 고침, 재검증 통과
+  - `F` 키 토글(상태 동기화, 문구·할당) → 둘 다 통과
+- agy 단독: `GameCloser` 제거 코드(남은 참조·using) → 통과. SystemCanvas 프리팹 YAML → 통과
+- 서브에이전트 단독: 로그 문구(조립·날짜 기록·테스트) → 통과. 문서·CHANGELOG → `Application.Quit(코드)` 설명과 ARCHITECTURE 트리(낮음) → 고침, 바인딩을 지운 경우와 `QuitReason.Clear()` 안내도 보탬. 재검증에서 `Clear()` 를 부르지 않았을 때 결과를 단정한 문구(낮음) → 구성별로 고침
+- 남은 것: 실제 Windows 빌드에서 Alt+F4 재시작·`F` 키 표시는 확인하지 않음(사용 중인 PC의 포커스를 뺏지 않으려고 빌드를 띄우지 않음). `runInBackground` 가 꺼진 프로젝트는 미룬 종료가 포커스가 돌아올 때까지 멈출 수 있음(`ApiManagerBase` 와 같은 구조). 현장 PC의 작업 스케줄러 가드 스크립트는 편집 도구를 다시 빌드해 다시 등록해야 새 문구로 바뀜. `start (user restart)` 에는 같은 날 시작 프로그램으로 다시 켜진 경우도 들어감.
+
 ### [2026-11-10 20:00] Claude → Antigravity · README 감시 대기 예시의 시간 제한 (docs/watchdog-timeout-example)
 - 요청: TODO 할 일 1건 처리. README `WaitUntilWatchingAsync` 예시가 `CancelAfter`로 시간 제한을 걸어, 시간이 다 되면 취소 뒤 코드가 스레드 풀에서 이어짐.
 - 변경: 예시를 `CancelAfterSlim(TimeSpan, DelayType.Realtime)`(PlayerLoop에서 취소)으로 바꾸고 이유를 예시 주석·API 표·메서드 summary에 적음. 문서·주석만 바뀌어 버전·CHANGELOG는 그대로.

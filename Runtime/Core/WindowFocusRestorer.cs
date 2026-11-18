@@ -34,6 +34,10 @@ namespace HuliacDev.Core
     /// Display.Activate로 연 보조 디스플레이 창도 같은 창 클래스라 함께 적용하며, 나중에 열린 창이나 풀린 상태를 잡도록
     /// 주기적으로 다시 확인함. ToggleFocusRestore 키로 끄면 항상 위도 함께 풀어, 점검할 때 작업 관리자·다른 프로그램을 볼 수 있게 함.
     /// </para>
+    /// <para>
+    /// 같은 키로 AutoRestartWatchdog의 Alt+F4 재시작도 함께 끄고 켬. 켜져 있으면 Alt+F4로 끈 앱을 감시가 다시 켜므로,
+    /// 점검하려고 앱을 끌 때는 이 키로 먼저 끔. 토글 키가 있을 때만 Alt+F4 재시작을 켬(없으면 끌 방법이 없기 때문).
+    /// </para>
     /// </summary>
     public sealed class WindowFocusRestorer : IStartable, ITickable, IDisposable
     {
@@ -80,6 +84,8 @@ namespace HuliacDev.Core
                 _inputActions.System.ToggleFocusRestore.performed += OnToggleFocusRestore;
                 // GameManagerBase가 입력 액션 전체를 켜기 전이거나 GameManagerBase가 없는 씬에서도 키가 동작하도록 이 액션만 켬.
                 _inputActions.System.ToggleFocusRestore.Enable();
+                // 끄는 키가 생겼으므로 Alt+F4 재시작을 포커스 복구와 같은 상태로 맞춤.
+                AutoRestartWatchdog.SetAltF4Restart(_isRestoreOn);
             }
             else if (_logger != null)
             {
@@ -118,15 +124,18 @@ namespace HuliacDev.Core
         }
 
         /// <summary>
-        /// 운영자 키 입력으로 포커스 복구(항상 위를 켰으면 항상 위도 함께)를 끄거나 켜고, 바뀐 상태를 화면에 잠깐 보여 줌.
+        /// 운영자 키 입력으로 포커스 복구(항상 위를 켰으면 항상 위도 함께)와 Alt+F4 재시작을 끄거나 켜고, 바뀐 상태를 화면에 잠깐 보여 줌.
         /// </summary>
         private void OnToggleFocusRestore(InputAction.CallbackContext _)
         {
             _isRestoreOn = !_isRestoreOn;
+            AutoRestartWatchdog.SetAltF4Restart(_isRestoreOn);
+
+            string featureName = GetToggleFeatureName(out bool isPlural);
 
             if (_logger != null)
             {
-                _logger.ZLogInformation($"[WindowFocusRestorer] Focus restore{(_useAlwaysOnTop ? " and always on top" : "")} turned {(_isRestoreOn ? "on" : "off")} by the ToggleFocusRestore key.");
+                _logger.ZLogInformation($"[WindowFocusRestorer] {featureName} turned {(_isRestoreOn ? "on" : "off")} by the ToggleFocusRestore key.");
             }
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
@@ -144,21 +153,34 @@ namespace HuliacDev.Core
             }
 #endif
 
-            ShowToggleStatus();
+            ShowToggleStatus(featureName, isPlural);
         }
 
         /// <summary>
-        /// 포커스 복구(항상 위를 켰으면 항상 위도 함께)의 켜짐·꺼짐을 화면 위쪽에 잠깐 표시함. 상태가 로그에만 남으면
+        /// 토글 키가 함께 끄고 켜는 기능의 표시 이름을 돌려줌. 항상 위는 켰을 때만, Alt+F4 재시작은 감시가 지켜보고 있을 때만 적음
+        /// (감시가 없으면 Alt+F4로 꺼도 다시 켜지지 않으므로). 기능이 둘 이상이면 isPlural이 true임.
+        /// </summary>
+        private string GetToggleFeatureName(out bool isPlural)
+        {
+            bool isAltF4RestartShown = AutoRestartWatchdog.IsWatching;
+            isPlural = _useAlwaysOnTop || isAltF4RestartShown;
+
+            if (_useAlwaysOnTop && isAltF4RestartShown) return "Focus restore, always on top and Alt+F4 restart";
+            if (_useAlwaysOnTop) return "Focus restore and always on top";
+            if (isAltF4RestartShown) return "Focus restore and Alt+F4 restart";
+            return "Focus restore";
+        }
+
+        /// <summary>
+        /// 토글 키가 끄고 켜는 기능의 켜짐·꺼짐을 화면 위쪽에 잠깐 표시함. 상태가 로그에만 남으면
         /// 유지보수 중 꺼 둔 채 잊기 쉬워, 끌 때는 다시 켜는 키도 함께 보여 줌. 키 이름은 ConfigureInputBindings로 바꾼 바인딩을 그대로 따름.
         /// </summary>
-        private void ShowToggleStatus()
+        private void ShowToggleStatus(string featureName, bool isPlural)
         {
             if (!_statusOverlay)
             {
                 _statusOverlay = StatusMessageOverlay.Create("FocusRestoreStatusOverlay");
             }
-
-            string featureName = _useAlwaysOnTop ? "Focus restore and always on top" : "Focus restore";
 
             if (_isRestoreOn)
             {
@@ -167,7 +189,7 @@ namespace HuliacDev.Core
             else
             {
                 string keyName = _inputActions.System.ToggleFocusRestore.GetBindingDisplayString();
-                string pronoun = _useAlwaysOnTop ? "them" : "it";
+                string pronoun = isPlural ? "them" : "it";
                 _statusOverlay.Show(ZString.Concat(featureName, " OFF - press ", keyName, " to turn ", pronoun, " back on"));
             }
         }
@@ -231,7 +253,7 @@ namespace HuliacDev.Core
                 // 토글 키가 없으면 점검할 때 항상 위를 끌 방법이 없어 작업 관리자·오류 창이 계속 가려지므로 미리 알림.
                 if (_useAlwaysOnTop && _inputActions == null)
                 {
-                    _logger.ZLogWarning($"[WindowFocusRestorer] Always on top is enabled but the ToggleFocusRestore key is unavailable, so it cannot be turned off for maintenance. Close the app with Alt+F4 or the hidden close button instead.");
+                    _logger.ZLogWarning($"[WindowFocusRestorer] Always on top is enabled but the ToggleFocusRestore key is unavailable, so it cannot be turned off for maintenance. Close the app with Alt+F4 instead.");
                 }
             }
         }
@@ -534,6 +556,8 @@ namespace HuliacDev.Core
             if (_inputActions != null)
             {
                 _inputActions.System.ToggleFocusRestore.performed -= OnToggleFocusRestore;
+                // 끄는 키가 사라지므로, Alt+F4로 끈 앱이 계속 다시 켜지지 않게 Alt+F4 재시작도 끔.
+                AutoRestartWatchdog.SetAltF4Restart(false);
             }
 
             // 오버레이는 씬을 넘어 유지되도록 만들었으므로, 이 서비스가 사라질 때 함께 파괴해야 남지 않음.

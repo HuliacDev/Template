@@ -107,7 +107,7 @@ Windows 작업 스케줄러가 PC를 대신 끔. 유니티와 무관한 별도 �
 2. `종료함`이 아니면 아무것도 하지 않고 종료
 3. 예정 시각 + 지연 시간이 아직 안 됐으면 아무것도 하지 않고 종료
 4. 위를 모두 통과하면, 같은 폴더의 `Settings.json`에서 `apiUrl`을 읽어
-   `"end_kill (by Task Scheduler)"` 종료 로그를 직접 전송(전송 실패는 무시하고 계속 진행)
+   `"end_kill (Task Scheduler)"` 종료 로그를 직접 전송(전송 실패는 무시하고 계속 진행)
 5. `shutdownArguments`로 `shutdown` 실행
 
 이 경로가 발동한다는 것 자체가 유니티(및 `ApiManagerBase`의 정상 종료 로그)가 응답하지 못했다는

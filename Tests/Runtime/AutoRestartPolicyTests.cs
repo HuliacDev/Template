@@ -129,6 +129,34 @@ namespace HuliacDev.Tests
         }
 
         /// <summary>
+        /// Alt+F4 종료 코드가 0도, 재시작 요청 코드도 아니고 스크립트의 분기 값과 같아야 함. 0이면 감시가 다시 켜지 않고,
+        /// 다르면 다시 켜지기는 하지만 RestartReason과 AutoRestart.log에 일반 종료 코드로 남아 크래시와 구분되지 않음.
+        /// </summary>
+        [Test]
+        public void Alt_F4_종료_코드가_스크립트와_맞는다()
+        {
+            int code = AutoRestartWatchdog.AltF4ExitCode;
+
+            Assert.AreNotEqual(0, code, "0이면 감시가 일부러 끈 것으로 보고 다시 켜지 않음");
+            Assert.AreNotEqual(AutoRestartWatchdog.RestartRequestedExitCode, code, "재시작 요청과 구분되지 않음");
+            StringAssert.Contains("$exitCode -eq " + code + ")", AutoRestartWatchdog.WatchdogScript);
+            StringAssert.Contains("closed with Alt+F4 (exit code " + code + ")", AutoRestartWatchdog.WatchdogScript);
+        }
+
+        /// <summary>
+        /// Alt+F4는 감시가 지켜보고 F 키로 끄지 않았을 때만 다시 켜는 코드로 끝내야 함. F 키로 껐는데도 그 코드로 끝내면 점검하려고 끈 앱이
+        /// 다시 켜지고, 감시가 없는데 그 코드로 끝내면 다시 켜 주는 쪽 없이 비정상 종료처럼만 보임.
+        /// </summary>
+        [Test]
+        public void Alt_F4는_감시가_지켜보고_재시작이_켜져_있을_때만_다시_켜는_코드로_끝낸다()
+        {
+            Assert.AreEqual(AutoRestartWatchdog.AltF4ExitCode, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: true, isAltF4RestartOn: true));
+            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: true, isAltF4RestartOn: false), "F 키로 껐는데 다시 켬");
+            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: false, isAltF4RestartOn: true), "감시가 없는데 0이 아닌 코드로 끝냄");
+            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(), "에디터는 감시가 없으므로 0이어야 함");
+        }
+
+        /// <summary>
         /// 환경 변수가 없거나 비어 있으면 다시 켠 실행이 아니므로 null이어야 함. 빈 문자열을 그대로 두면 WasRestarted가 true가 됨.
         /// </summary>
         [Test]
@@ -153,7 +181,7 @@ namespace HuliacDev.Tests
         }
 
         /// <summary>
-        /// 다른 종료(예약 종료·숨은 종료 버튼·Alt+F4)가 진행 중이면 재시작 요청을 받아들이지 않아야 함.
+        /// 다른 종료(예약 종료·Alt+F4)가 진행 중이면 재시작 요청을 받아들이지 않아야 함.
         /// 받아들이면 종료 로그를 보내는 사이 종료 코드가 75로 바뀌어, 일부러 끈 앱을 감시가 다시 켬.
         /// </summary>
         [Test]
