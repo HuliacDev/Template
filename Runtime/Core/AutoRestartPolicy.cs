@@ -10,8 +10,8 @@ namespace HuliacDev.Core
     /// </summary>
     internal static class AutoRestartPolicy
     {
-        /// <summary>hangRestartSeconds가 미지정(음수)일 때 쓰는 응답 없음 판정 시간(초). 큰 씬·영상 로딩으로 메인 스레드가 잠깐 막혀도 걸리지 않을 만큼 둠.</summary>
-        public const int DefaultHangRestartSeconds = 60;
+        /// <summary>autoRestartSeconds가 미지정(음수)일 때 쓰는 응답 없음 판정 시간(초). 큰 씬·영상 로딩으로 메인 스레드가 잠깐 막혀도 걸리지 않을 만큼 둠.</summary>
+        public const int DefaultHangRestartSeconds = 30;
 
         /// <summary>응답 없음 판정 시간의 최소값(초). Windows는 5초 넘게 메시지를 처리하지 못한 창을 응답 없음으로 보므로, 너무 짧으면 잠깐 막힌 앱도 꺼짐.</summary>
         public const int MinHangRestartSeconds = 10;
@@ -30,6 +30,16 @@ namespace HuliacDev.Core
 
         /// <summary>앱이 이 시간(초)보다 짧게 실행되고 끝나면 '켜자마자 끝남'으로 셈. 이어서 두 번째부터 재시작 간격을 두 배씩 늘림.</summary>
         public const int QuickExitSeconds = 60;
+
+        /// <summary>
+        /// Settings.json에서 쓸 응답 없음 판정 시간 값을 고름. autoRestartSeconds를 적었으면 그 값을 쓰고, 적지 않았는데 예전 키
+        /// hangRestartSeconds를 적었으면 그 값을 쓰며 usedLegacyKey를 true로 돌려줌(호출부가 경고). 둘 다 없으면 미지정(음수)을 돌려줌.
+        /// </summary>
+        public static float SelectHangRestartSeconds(float autoRestartSeconds, float legacyHangRestartSeconds, out bool usedLegacyKey)
+        {
+            usedLegacyKey = autoRestartSeconds < 0f && legacyHangRestartSeconds >= 0f;
+            return usedLegacyKey ? legacyHangRestartSeconds : autoRestartSeconds;
+        }
 
         /// <summary>
         /// 응답 없음 판정 시간(초)을 정함. 음수(미지정)면 기본값, 0이면 감지 끔(0 반환), 최소값보다 작은 양수면 최소값을 돌려줌.

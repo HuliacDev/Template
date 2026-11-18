@@ -1,6 +1,12 @@
 # Changelog
 모든 주요 변경 사항을 이 파일에 기록합니다.
 
+## [26.11.18-4] - 2026-11-18
+
+### Changed
+- **응답 없음 판정 시간의 키 이름을 `autoRestartSeconds`로 바꾸고 기본값을 30초로 줄임(`Runtime/Data/TemplateData.cs`, `Runtime/Core/AutoRestartPolicy.cs`, `Runtime/Core/AutoRestartWatchdog.cs`):** `Settings.json`의 `autoRestart.hangRestartSeconds`를 `autoRestart.autoRestartSeconds`로 바꿈. 생략했을 때의 기본값은 60초에서 30초로 줄여, 멈춘 앱을 더 빨리 다시 켬(Windows가 응답 없음으로 판정하는 5초를 더하면 약 35초). 새 키가 없으면 예전 키를 읽고 이름을 바꾸라는 경고를 남김. 이름만 바꾸면 예전 키로 감지를 꺼 둔(0) 현장이 조용히 30초 감지로 켜지기 때문. `AutoRestartPolicyTests`에 1건 추가.
+  - **Breaking:** `hangRestartSeconds`를 적지 않은 프로젝트는 응답 없음 판정이 60초에서 30초로 빨라짐. 큰 씬·영상 로딩으로 30초 넘게 멈추는 앱은 `autoRestartSeconds`를 늘릴 것. `hangRestartSeconds`를 적은 프로젝트는 지금은 그 값으로 동작하지만 키 이름을 `autoRestartSeconds`로 바꿀 것.
+
 ## [26.11.18-3] - 2026-11-18
 
 ### Changed
