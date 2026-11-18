@@ -159,6 +159,19 @@ namespace HuliacDev.Tests
         }
 
         /// <summary>
+        /// 토글 표시의 각 줄이 상자 너비를 넘으면 글자를 줄여 한 줄에 맞춰야 하고, 들어가면 그대로 둬야 함.
+        /// 너무 작아지면 읽을 수 없으므로 기본 크기의 60%와 최소 글자 크기(16) 아래로는 줄이지 않아야 함(그때는 줄을 바꿈).
+        /// </summary>
+        [Test]
+        public void 각_줄이_넘치면_글자를_줄여_한_줄에_맞추고_하한_아래로는_줄이지_않는다()
+        {
+            Assert.AreEqual(43, StatusMessageOverlay.ResolveFitFontSize(43, 1000f, 1700f), "들어가는데 글자를 줄임");
+            Assert.AreEqual(34, StatusMessageOverlay.ResolveFitFontSize(43, 1200f, 1000f), "넘친 비율만큼 줄이지 않음(내림 후 1 뺌)");
+            Assert.AreEqual(26, StatusMessageOverlay.ResolveFitFontSize(43, 3000f, 1000f), "기본 크기의 60% 아래로 줄임");
+            Assert.AreEqual(16, StatusMessageOverlay.ResolveFitFontSize(16, 3000f, 1000f), "최소 글자 크기 아래로 줄임");
+        }
+
+        /// <summary>
         /// 토글 키(TemplateInputActions)를 넣거나 뺀 컨테이너를 만듦. 컨테이너를 해제하면 입력 액션도 함께 해제됨.
         /// </summary>
         private static IObjectResolver BuildResolver(bool withInputActions)

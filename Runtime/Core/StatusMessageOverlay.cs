@@ -18,7 +18,13 @@ namespace HuliacDev.Core
         /// <summary>글자 크기의 최소값. 낮은 해상도 창에서도 읽을 수 있게 함.</summary>
         private const int MinFontSize = 16;
 
-        // 상자 높이를 글 높이에 맞추려고 CalcHeight에 넘기는 내용. OnGUI가 매 프레임 불리므로 새로 만들지 않고 재사용함.
+        /// <summary>상자의 최대 너비(화면 너비 대비). 메시지의 각 줄이 줄바꿈 없이 한 줄로 보이도록 넉넉히 둠.</summary>
+        private const float MaxWidthRatio = 0.9f;
+
+        /// <summary>각 줄을 한 줄에 맞추려고 글자를 줄일 수 있는 하한(기본 글자 크기 대비). 이보다 작아져야 하면 줄을 바꿈.</summary>
+        private const float MinFitFontRatio = 0.6f;
+
+        // 상자 크기를 글 크기에 맞추려고 CalcSize·CalcHeight에 넘기는 내용. OnGUI가 매 프레임 불리므로 새로 만들지 않고 재사용함.
         private readonly GUIContent _content = new GUIContent();
 
         private string _message;
@@ -60,7 +66,8 @@ namespace HuliacDev.Core
         }
 
         /// <summary>
-        /// 화면 위쪽 가운데에 반투명 배경 상자와 함께 메시지를 그림. 상자 높이는 메시지 줄 수에 맞춤.
+        /// 화면 위쪽 가운데에 반투명 배경 상자와 함께 메시지를 그림. 메시지의 각 줄(줄바꿈으로 나눈 줄)이 한 줄로 보이도록
+        /// 상자 너비를 가장 긴 줄에 맞추고(화면 너비의 MaxWidthRatio까지), 그래도 넘치면 글자를 줄임. 하한까지 줄여도 넘치면 줄을 바꿈.
         /// </summary>
         private void OnGUI()
         {
@@ -74,14 +81,40 @@ namespace HuliacDev.Core
                 };
             }
 
-            _boxStyle.fontSize = Mathf.Max(MinFontSize, Mathf.RoundToInt(Screen.height * FontSizeRatio));
-
-            float width = Screen.width * 0.6f;
-            // 여러 줄(줄바꿈이나 자동 줄 바꿈)이어도 잘리지 않게 글 높이에 위아래 여백을 더하고, 한 줄이면 예전 높이(글자 2.5배)를 둠.
+            int baseFontSize = Mathf.Max(MinFontSize, Mathf.RoundToInt(Screen.height * FontSizeRatio));
+            float maxWidth = Screen.width * MaxWidthRatio;
+            float horizontalPadding = _boxStyle.padding.horizontal;
             _content.text = _message;
-            float height = Mathf.Max(_boxStyle.fontSize * 2.5f, _boxStyle.CalcHeight(_content, width) + _boxStyle.fontSize);
+
+            // CalcSize는 자동 줄 바꿈 없이 가장 긴 줄의 너비(안쪽 여백 포함)를 돌려줌.
+            _boxStyle.fontSize = baseFontSize;
+            float lineWidth = _boxStyle.CalcSize(_content).x;
+            int fontSize = ResolveFitFontSize(baseFontSize, lineWidth - horizontalPadding, maxWidth - horizontalPadding);
+            if (fontSize != baseFontSize)
+            {
+                _boxStyle.fontSize = fontSize;
+                lineWidth = _boxStyle.CalcSize(_content).x;
+            }
+
+            // 좌우에 글자 크기만큼 여유를 두되 최대 너비를 넘지 않음. 글 높이에 위아래 여백을 더하고, 한 줄이면 예전 높이(글자 2.5배)를 둠.
+            float width = Mathf.Min(maxWidth, lineWidth + fontSize);
+            float height = Mathf.Max(fontSize * 2.5f, _boxStyle.CalcHeight(_content, width) + fontSize);
             Rect rect = new Rect((Screen.width - width) * 0.5f, Screen.height * 0.1f, width, height);
             GUI.Box(rect, _content, _boxStyle);
+        }
+
+        /// <summary>
+        /// 가장 긴 줄의 글 너비가 들어갈 수 있는 너비를 넘으면, 넘지 않도록 글자 크기를 비례해 줄여 돌려줌. 들어가면 기본 크기를 그대로 돌려줌.
+        /// 너무 작아지지 않도록 기본 크기의 MinFitFontRatio와 MinFontSize 중 큰 값 아래로는 줄이지 않음(그때는 줄을 바꿈).
+        /// 글자 크기는 정수라 반올림하면 넘칠 수 있으므로 내림하고 1을 더 뺌.
+        /// </summary>
+        internal static int ResolveFitFontSize(int baseFontSize, float textWidth, float availableTextWidth)
+        {
+            if (textWidth <= availableTextWidth || textWidth <= 0f) return baseFontSize;
+
+            int lowerBound = Mathf.Min(baseFontSize, Mathf.Max(MinFontSize, Mathf.RoundToInt(baseFontSize * MinFitFontRatio)));
+            int fitted = Mathf.FloorToInt(baseFontSize * availableTextWidth / textWidth) - 1;
+            return Mathf.Clamp(fitted, lowerBound, baseFontSize);
         }
     }
 }
