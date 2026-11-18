@@ -200,7 +200,7 @@ namespace HuliacDev.Network
                 _isSendingExitLog = true;
                 // Alt+F4처럼 사유를 기록하지 않은 종료도 진행 중으로 표시해, 로그를 보내는 사이 재시작 요청이 이 종료를 덮어쓰지 않게 함.
                 // 이때 끝낼 종료 코드도 정함. 자동 재시작 감시가 지켜보고 Alt+F4 재시작이 켜져 있으면 감시가 다시 켜는 코드가 됨.
-                QuitReason.MarkQuitRequested(AutoRestartWatchdog.ResolveAltF4ExitCode());
+                AutoRestartWatchdog.MarkUnattributedQuit();
                 SendExitLogThenQuitAsync().Forget();
             }
 

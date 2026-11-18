@@ -85,7 +85,7 @@ namespace HuliacDev.Core
                 // GameManagerBase가 입력 액션 전체를 켜기 전이거나 GameManagerBase가 없는 씬에서도 키가 동작하도록 이 액션만 켬.
                 _inputActions.System.ToggleFocusRestore.Enable();
                 // 끄는 키가 생겼으므로 Alt+F4 재시작을 포커스 복구와 같은 상태로 맞춤.
-                AutoRestartWatchdog.SetAltF4Restart(_isRestoreOn);
+                AutoRestartWatchdog.SetAltF4Restart(this, _isRestoreOn);
             }
             else if (_logger != null)
             {
@@ -129,7 +129,7 @@ namespace HuliacDev.Core
         private void OnToggleFocusRestore(InputAction.CallbackContext _)
         {
             _isRestoreOn = !_isRestoreOn;
-            AutoRestartWatchdog.SetAltF4Restart(_isRestoreOn);
+            AutoRestartWatchdog.SetAltF4Restart(this, _isRestoreOn);
 
             string featureName = GetToggleFeatureName(out bool isPlural);
 
@@ -157,17 +157,24 @@ namespace HuliacDev.Core
         }
 
         /// <summary>
-        /// 토글 키가 함께 끄고 켜는 기능의 표시 이름을 돌려줌. 항상 위는 켰을 때만, Alt+F4 재시작은 감시가 지켜보고 있을 때만 적음
+        /// 토글 키가 함께 끄고 켜는 기능의 표시 이름을 돌려줌. Alt+F4 재시작은 감시가 지켜보고 있거나 지켜보기 시작하는 중일 때만 적음
         /// (감시가 없으면 Alt+F4로 꺼도 다시 켜지지 않으므로). 기능이 둘 이상이면 isPlural이 true임.
         /// </summary>
         private string GetToggleFeatureName(out bool isPlural)
         {
-            bool isAltF4RestartShown = AutoRestartWatchdog.IsWatching;
-            isPlural = _useAlwaysOnTop || isAltF4RestartShown;
+            return BuildToggleFeatureName(_useAlwaysOnTop, AutoRestartWatchdog.IsWatchingOrStarting, out isPlural);
+        }
 
-            if (_useAlwaysOnTop && isAltF4RestartShown) return "Focus restore, always on top and Alt+F4 restart";
-            if (_useAlwaysOnTop) return "Focus restore and always on top";
-            if (isAltF4RestartShown) return "Focus restore and Alt+F4 restart";
+        /// <summary>
+        /// 토글 키가 끄고 켜는 기능의 표시 이름을 고름. 항상 위는 켰을 때만, Alt+F4 재시작은 적용될 때만 넣음. 문자열을 새로 만들지 않도록 상수를 돌려줌.
+        /// </summary>
+        internal static string BuildToggleFeatureName(bool useAlwaysOnTop, bool includeAltF4Restart, out bool isPlural)
+        {
+            isPlural = useAlwaysOnTop || includeAltF4Restart;
+
+            if (useAlwaysOnTop && includeAltF4Restart) return "Focus restore, always on top and Alt+F4 restart";
+            if (useAlwaysOnTop) return "Focus restore and always on top";
+            if (includeAltF4Restart) return "Focus restore and Alt+F4 restart";
             return "Focus restore";
         }
 
@@ -556,8 +563,8 @@ namespace HuliacDev.Core
             if (_inputActions != null)
             {
                 _inputActions.System.ToggleFocusRestore.performed -= OnToggleFocusRestore;
-                // 끄는 키가 사라지므로, Alt+F4로 끈 앱이 계속 다시 켜지지 않게 Alt+F4 재시작도 끔.
-                AutoRestartWatchdog.SetAltF4Restart(false);
+                // 끄는 키가 사라지므로, Alt+F4로 끈 앱이 계속 다시 켜지지 않게 Alt+F4 재시작도 끔(그사이 다른 스코프가 정했으면 그대로 둠).
+                AutoRestartWatchdog.ReleaseAltF4Restart(this);
             }
 
             // 오버레이는 씬을 넘어 유지되도록 만들었으므로, 이 서비스가 사라질 때 함께 파괴해야 남지 않음.

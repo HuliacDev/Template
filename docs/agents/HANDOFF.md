@@ -14,7 +14,10 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
   - `F` 키 토글(상태 동기화, 문구·할당) → 둘 다 통과
 - agy 단독: `GameCloser` 제거 코드(남은 참조·using) → 통과. SystemCanvas 프리팹 YAML → 통과
 - 서브에이전트 단독: 로그 문구(조립·날짜 기록·테스트) → 통과. 문서·CHANGELOG → `Application.Quit(코드)` 설명과 ARCHITECTURE 트리(낮음) → 고침, 바인딩을 지운 경우와 `QuitReason.Clear()` 안내도 보탬. 재검증에서 `Clear()` 를 부르지 않았을 때 결과를 단정한 문구(낮음) → 구성별로 고침
-- 남은 것: 실제 Windows 빌드에서 Alt+F4 재시작·`F` 키 표시는 확인하지 않음(사용 중인 PC의 포커스를 뺏지 않으려고 빌드를 띄우지 않음). `runInBackground` 가 꺼진 프로젝트는 미룬 종료가 포커스가 돌아올 때까지 멈출 수 있음(`ApiManagerBase` 와 같은 구조). 현장 PC의 작업 스케줄러 가드 스크립트는 편집 도구를 다시 빌드해 다시 등록해야 새 문구로 바뀜. `start (user restart)` 에는 같은 날 시작 프로그램으로 다시 켜진 경우도 들어감.
+- PR 리뷰(Claude `/code-review` high, #80, 6건) → 사용자 지시("6건 모두 고치기")로 모두 고침: 씬마다 스코프를 두는 구성에서 Alt+F4 재시작 상태를 소유자로 구분, Windows 종료 중·PlayerLoop가 멈춘 경우(Run In Background 꺼짐 + 포커스 없음) 종료 코드 0으로 보고 미루지 않음, 감시를 띄우는 중에도 토글 표시에 넣음, 다시 켜는 코드로 끝낼 때 앱 로그, `WindowFocusRestorerTests` 4건(테스트 어셈블리에 VContainer 참조).
+  - 교차 검증(agy + 서브에이전트) → 토글 수정분은 둘 다 통과(서브에이전트 참고: 같은 인스턴스를 두 번 Dispose하는 단언 → 테스트에 보탬). 감시 수정분은 둘 다 Run In Background 분기가 감시 처리기에만 있어 `ApiManagerBase` 와 코드·로그가 엇갈림(낮음)을 짚음 → 종료 코드 판단으로 옮김. 서브에이전트: 감시를 띄운 스코프가 사라지면 로그를 못 남김(낮음) → 마지막으로 시작한 살아 있는 인스턴스의 로거를 씀. 재검증 → 둘 다 통과
+  - Claude 확인: PlayMode 187/187(경고 0), Windows 플레이어 스크립트 컴파일 성공
+- 남은 것: 실제 Windows 빌드에서 Alt+F4 재시작·`F` 키 표시는 확인하지 않음(사용 중인 PC의 포커스를 뺏지 않으려고 빌드를 띄우지 않음). `ApiManagerBase` 는 PlayerLoop가 멈춘 동안 종료 로그를 보내려고 종료를 미뤄, 포커스가 돌아올 때까지 앱이 꺼지지 않음(이번 PR 이전부터 있던 동작). 비활성 창의 닫기 버튼을 누를 때 `Application.isFocused` 가 언제 바뀌는지는 확인하지 않음. 현장 PC의 작업 스케줄러 가드 스크립트는 편집 도구를 다시 빌드해 다시 등록해야 새 문구로 바뀜. `start (user restart)` 에는 같은 날 시작 프로그램으로 다시 켜진 경우도 들어감.
 
 ### [2026-11-10 20:00] Claude → Antigravity · README 감시 대기 예시의 시간 제한 (docs/watchdog-timeout-example)
 - 요청: TODO 할 일 1건 처리. README `WaitUntilWatchingAsync` 예시가 `CancelAfter`로 시간 제한을 걸어, 시간이 다 되면 취소 뒤 코드가 스레드 풀에서 이어짐.

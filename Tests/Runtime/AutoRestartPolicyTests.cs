@@ -144,15 +144,19 @@ namespace HuliacDev.Tests
         }
 
         /// <summary>
-        /// Alt+F4는 감시가 지켜보고 F 키로 끄지 않았을 때만 다시 켜는 코드로 끝내야 함. F 키로 껐는데도 그 코드로 끝내면 점검하려고 끈 앱이
-        /// 다시 켜지고, 감시가 없는데 그 코드로 끝내면 다시 켜 주는 쪽 없이 비정상 종료처럼만 보임.
+        /// Alt+F4는 감시가 지켜보고 F 키로 끄지 않았으며 Windows가 종료 중이 아닐 때만 다시 켜는 코드로 끝내야 함. F 키로 껐는데도 그 코드로 끝내면
+        /// 점검하려고 끈 앱이 다시 켜지고, 감시가 없는데 그 코드로 끝내면 다시 켜 주는 쪽 없이 비정상 종료처럼만 보임. Windows 종료 중에는 감시가
+        /// 다시 켜지 않으므로 종료를 미룰 이유가 없음(미루면 Windows 종료가 잠깐 막힘). PlayerLoop가 멈춰 있으면 미룬 종료를 다시 끝낼 수 없어
+        /// 종료가 멈추므로 0으로 끝내야 함.
         /// </summary>
         [Test]
         public void Alt_F4는_감시가_지켜보고_재시작이_켜져_있을_때만_다시_켜는_코드로_끝낸다()
         {
-            Assert.AreEqual(AutoRestartWatchdog.AltF4ExitCode, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: true, isAltF4RestartOn: true));
-            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: true, isAltF4RestartOn: false), "F 키로 껐는데 다시 켬");
-            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: false, isAltF4RestartOn: true), "감시가 없는데 0이 아닌 코드로 끝냄");
+            Assert.AreEqual(AutoRestartWatchdog.AltF4ExitCode, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: true, isAltF4RestartOn: true, isShuttingDown: false, isPlayerLoopPaused: false));
+            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: true, isAltF4RestartOn: false, isShuttingDown: false, isPlayerLoopPaused: false), "F 키로 껐는데 다시 켬");
+            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: false, isAltF4RestartOn: true, isShuttingDown: false, isPlayerLoopPaused: false), "감시가 없는데 0이 아닌 코드로 끝냄");
+            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: true, isAltF4RestartOn: true, isShuttingDown: true, isPlayerLoopPaused: false), "Windows 종료 중인데 미룰 코드로 끝냄");
+            Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(isWatching: true, isAltF4RestartOn: true, isShuttingDown: false, isPlayerLoopPaused: true), "PlayerLoop가 멈췄는데 미룰 코드로 끝냄");
             Assert.AreEqual(0, AutoRestartWatchdog.ResolveAltF4ExitCode(), "에디터는 감시가 없으므로 0이어야 함");
         }
 
