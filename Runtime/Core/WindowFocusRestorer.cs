@@ -41,14 +41,12 @@ namespace HuliacDev.Core
     /// </summary>
     public sealed class WindowFocusRestorer : IStartable, ITickable, IDisposable
     {
-        /// <summary>항상 위가 켜져 있을 때, 이 앱의 창이 모두 항상 위인지 다시 확인하는 간격(초).</summary>
-        private const double TopmostCheckIntervalSeconds = 1d;
-
         /// <summary>
-        /// 실제 포그라운드 창이 이 앱의 창인지 다시 확인하는 간격(초). FocusRestoreSchedule의 최소 대기·재시도 간격(1초) 이하로 둘 것.
-        /// 그래야 복구가 성공했는데 Unity가 포커스 이벤트를 보내지 않을 때도 다음 시도보다 먼저 확인해 대기를 끝냄.
+        /// 실제 포그라운드 창이 이 앱의 창인지 확인하고, 항상 위가 켜져 있으면 이 앱의 창이 모두 항상 위인지 다시 확인하는 간격(초).
+        /// FocusRestoreSchedule의 최소 대기·재시도 간격(1초) 이하로 둘 것. 그래야 복구가 성공했는데 Unity가 포커스 이벤트를
+        /// 보내지 않을 때도 다음 시도보다 먼저 확인해 대기를 끝냄.
         /// </summary>
-        private const double ForegroundCheckIntervalSeconds = 1d;
+        private const double PeriodicCheckIntervalSeconds = 1d;
 
         // 토글 표시에서 켜짐·꺼짐을 한눈에 구분하도록 상태 단어에 입히는 IMGUI 리치 텍스트 색(StatusMessageOverlay가 richText로 그림). 로그에는 넣지 않음.
         private const string OnColorTag = "<color=#5BD75B>";
@@ -66,8 +64,7 @@ namespace HuliacDev.Core
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
         private FocusRestoreSchedule _schedule;
         private IntPtr _windowHandle;
-        private double _nextTopmostCheckTime;
-        private double _nextForegroundCheckTime;
+        private double _nextPeriodicCheckTime;
 #endif
 
         private bool _isActive;
@@ -160,7 +157,7 @@ namespace HuliacDev.Core
             {
                 if (_isRestoreOn)
                 {
-                    _nextTopmostCheckTime = 0d;
+                    _nextPeriodicCheckTime = 0d;
                 }
                 else
                 {
@@ -258,26 +255,25 @@ namespace HuliacDev.Core
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
             double now = Time.realtimeSinceStartupAsDouble;
 
-            // Unity의 포커스 상태(Application.isFocused)는 Windows가 앞으로 내보내지 않은 창에서도 true일 수 있음. 감시가 다시 켠 앱처럼
-            // 뒤에서 실행된 프로그램은 화면에 보여도(항상 위면 맨 위에 그려져도) 키보드 입력은 다른 창으로 감. 그래서 실제 포그라운드 창이
-            // 이 앱의 것인지 주기적으로 확인해, 아니면 포커스를 잃은 것처럼 되찾고 돌아왔으면 대기를 끝냄.
-            if (now >= _nextForegroundCheckTime)
+            if (now >= _nextPeriodicCheckTime)
             {
-                _nextForegroundCheckTime = now + ForegroundCheckIntervalSeconds;
+                _nextPeriodicCheckTime = now + PeriodicCheckIntervalSeconds;
+
+                // Unity의 포커스 상태(Application.isFocused)는 Windows가 앞으로 내보내지 않은 창에서도 true일 수 있음. 감시가 다시 켠 앱처럼
+                // 뒤에서 실행된 프로그램은 화면에 보여도(항상 위면 맨 위에 그려져도) 키보드 입력은 다른 창으로 감. 그래서 실제 포그라운드 창이
+                // 이 앱의 것인지 확인해, 아니면 포커스를 잃은 것처럼 되찾고 돌아왔으면 대기를 끝냄. 다음 시도보다 먼저 확인해야 이미 돌아온 창에 다시 시도하지 않음.
                 CheckForeground(now);
+
+                // Display.Activate로 나중에 열린 보조 디스플레이 창과, 어떤 이유로든 풀린 항상 위(보조 창을 열면 메인 창도 풀림)를 다시 잡음.
+                if (_useAlwaysOnTop)
+                {
+                    SetAlwaysOnTop(true);
+                }
             }
 
             if (_schedule.TryBeginAttempt(now))
             {
                 TryRestoreFocus();
-            }
-
-            // Display.Activate로 나중에 열린 보조 디스플레이 창과, 어떤 이유로든 풀린 항상 위(보조 창을 열면 메인 창도 풀림)를
-            // 다시 잡도록 주기적으로 확인함.
-            if (_useAlwaysOnTop && now >= _nextTopmostCheckTime)
-            {
-                _nextTopmostCheckTime = now + TopmostCheckIntervalSeconds;
-                SetAlwaysOnTop(true);
             }
 #endif
         }
@@ -308,6 +304,14 @@ namespace HuliacDev.Core
             Application.focusChanged += OnFocusChanged;
             _isActive = true;
 
+            // 포그라운드 확인은 한 간격 뒤부터 함. 막 켜진 창을 Windows가 아직 활성화하지 않은 첫 프레임에 확인하면, 평소처럼 켠 앱도
+            // 다른 창이 앞에 있다고 보고 로그를 남기기 때문. 항상 위는 기다릴 이유가 없으므로 바로 적용함.
+            _nextPeriodicCheckTime = Time.realtimeSinceStartupAsDouble + PeriodicCheckIntervalSeconds;
+            if (_isRestoreOn && _useAlwaysOnTop)
+            {
+                SetAlwaysOnTop(true);
+            }
+
             if (_logger != null)
             {
                 _logger.ZLogInformation($"[WindowFocusRestorer] Started ({(_isRestoreOn ? "on" : "off")}). Brings the window back {_schedule.DelaySeconds}s after focus is lost and retries every {_schedule.RetryIntervalSeconds}s. Always on top is {(_useAlwaysOnTop ? "enabled" : "disabled")} (alwaysOnTop).");
@@ -329,7 +333,7 @@ namespace HuliacDev.Core
         {
             if (hasFocus)
             {
-                if (NativeMethods.IsOwnProcessForeground()) MarkFocusReturned();
+                if (NativeMethods.IsOwnProcessWindow(NativeMethods.GetForegroundWindow())) MarkFocusReturned();
                 return;
             }
 
@@ -351,18 +355,21 @@ namespace HuliacDev.Core
         }
 
         /// <summary>
-        /// 실제 포그라운드 창이 이 앱의 창인지 확인함. 아니면서 아직 기다리는 중이 아니면 대기를 시작하고(Unity는 포커스가 있다고 보는 경우),
-        /// 맞으면서 기다리는 중이면 대기를 끝냄(Unity가 포커스를 되찾았다고 알리지 않는 경우).
+        /// 실제 포그라운드 창을 확인함. 되찾을 창(ResolveOwnWindow)이면서 기다리는 중이면 대기를 끝내고(Unity가 포커스를 되찾았다고 알리지 않는 경우),
+        /// 다른 프로그램의 창이거나 포그라운드 창이 없으면서 아직 기다리는 중이 아니면 대기를 시작함(Unity는 포커스가 있다고 보는 경우).
+        /// 보조 디스플레이 창 등 이 앱의 다른 창이 앞에 있으면 아무것도 하지 않고 Unity의 포커스 이벤트에 맡김. 키 입력이 그 창으로
+        /// 들어가는지 여기서는 알 수 없어, 이 확인을 넣기 전과 같게 둠(Unity가 포커스를 잃었다고 알리면 대기 시간 뒤 되찾을 창을 앞으로 가져옴).
         /// </summary>
         private void CheckForeground(double now)
         {
-            if (NativeMethods.IsOwnProcessForeground())
+            IntPtr foregroundWindow = NativeMethods.GetForegroundWindow();
+            if (foregroundWindow != IntPtr.Zero && foregroundWindow == ResolveOwnWindow())
             {
                 if (_schedule.IsWaitingForFocus) MarkFocusReturned();
                 return;
             }
 
-            if (_schedule.IsWaitingForFocus) return;
+            if (NativeMethods.IsOwnProcessWindow(foregroundWindow) || _schedule.IsWaitingForFocus) return;
 
             _schedule.OnFocusLost(now);
             if (_logger != null)
@@ -476,9 +483,9 @@ namespace HuliacDev.Core
             [DllImport("user32.dll")]
             public static extern bool IsWindow(IntPtr hWnd);
 
-            /// <summary>지금 포그라운드인 창 핸들을 돌려줌.</summary>
+            /// <summary>지금 포그라운드인 창(키보드 입력을 받는 창) 핸들을 돌려줌. 잠금 화면·창 전환 중에는 IntPtr.Zero일 수 있음.</summary>
             [DllImport("user32.dll")]
-            private static extern IntPtr GetForegroundWindow();
+            public static extern IntPtr GetForegroundWindow();
 
             /// <summary>창을 포그라운드로 가져오고 성공 여부를 돌려줌.</summary>
             [DllImport("user32.dll")]
@@ -573,14 +580,13 @@ namespace HuliacDev.Core
             }
 
             /// <summary>
-            /// 지금 포그라운드 창(키보드 입력을 받는 창)이 이 프로세스의 창이면 true. 보조 디스플레이 창 등 이 프로세스의 다른 창도 포함함.
+            /// 창이 이 프로세스의 것이면 true. 보조 디스플레이 창 등 이 프로세스의 다른 창도 포함하며, 핸들이 없으면 false.
             /// </summary>
-            public static bool IsOwnProcessForeground()
+            public static bool IsOwnProcessWindow(IntPtr window)
             {
-                IntPtr foregroundWindow = GetForegroundWindow();
-                if (foregroundWindow == IntPtr.Zero) return false;
+                if (window == IntPtr.Zero) return false;
 
-                GetWindowThreadProcessId(foregroundWindow, out uint processId);
+                GetWindowThreadProcessId(window, out uint processId);
                 return processId == GetCurrentProcessId();
             }
 
