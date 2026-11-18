@@ -8,10 +8,10 @@
 
 ## 할 일
 
-- [ ] 다중 디스플레이(`Display.Activate`)에서 `WindowFocusRestorer` 가 되찾을 창을 기억하지 못했을 때 `FindOwnUnityWindow` 가 z-order 첫 Unity 창을 고르므로 보조 디스플레이 창을 앞으로 가져올 수 있음. 메인 창이 비활성일 때 Unity가 포커스를 잃었다고 보면 키 입력이 들어오지 않을 수 있음 — 다중 디스플레이 실기에서 확인 필요 — 발견일: 2026-11-19
 
 ## 완료
 
+- [x] 다중 디스플레이(`Display.Activate`)에서 보조 디스플레이 창이 앞에 있을 때 키 입력이 앱에 들어가는지, 감시가 다시 켠 앱이 포그라운드를 되찾는지 실기 확인. 두 모니터 실기에서 보조 창을 클릭해도 Unity는 포커스를 잃었다고 보지 않았고(`focusChanged` 없음) 키 입력도 들어감. 감시 재시작 뒤 1초에 감지해 3초 뒤 되찾음("Focus returned after 1 restore attempt(s)"), 클릭 없이 단축키가 들음. `FindOwnUnityWindow` 가 보조 창을 고르는 경우도 키 입력에는 문제가 없어 고치지 않음 — 완료: 2026-11-19
 - [x] 자동 재시작 감시가 다시 켠 앱이 화면에 보여도 포그라운드가 아니라 한 번 클릭하기 전까지 키 입력이 다른 창으로 가던 것(`Application.isFocused` 는 true라 포커스 복구가 시도하지 않음). 1초마다 실제 포그라운드를 확인해 되찾음. `F` 키 표시의 ON/OFF·감시 상태에 색을 입힘 — 완료: 2026-11-19 (#86)
 - [x] 응답 없음 판정 키 이름을 `hangRestartSeconds` 로 되돌림(`autoRestartSeconds` 는 감시 전체의 시간처럼 읽힘, 기본 30초는 유지) — 완료: 2026-11-18 (#85)
 - [x] 응답 없음 판정 키를 `autoRestartSeconds` 로 바꾸고 기본값을 30초로 줄임(예전 키 `hangRestartSeconds` 는 새 키가 없을 때만 읽고 경고) — 완료: 2026-11-18 (#84)
