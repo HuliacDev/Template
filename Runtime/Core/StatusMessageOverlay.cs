@@ -74,7 +74,7 @@ namespace HuliacDev.Core
             // GUI.skin은 OnGUI 안에서만 쓸 수 있으므로 처음 그릴 때 스타일을 만들어 재사용함.
             if (_boxStyle == null)
             {
-                // 상태 단어에 색을 입히는 <color> 태그를 그리도록 richText를 켬. CalcSize·CalcHeight도 태그를 빼고 잼.
+                // 상태 단어에 색을 입히는 <color> 태그를 그리도록 richText를 켬. CalcSize는 같은 스타일로 재므로 태그 글자를 빼고 잼(측정으로 확인).
                 _boxStyle = new GUIStyle(GUI.skin.box)
                 {
                     alignment = TextAnchor.MiddleCenter,

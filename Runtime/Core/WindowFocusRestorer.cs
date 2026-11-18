@@ -44,7 +44,10 @@ namespace HuliacDev.Core
         /// <summary>항상 위가 켜져 있을 때, 이 앱의 창이 모두 항상 위인지 다시 확인하는 간격(초).</summary>
         private const double TopmostCheckIntervalSeconds = 1d;
 
-        /// <summary>실제 포그라운드 창이 이 앱의 창인지 다시 확인하는 간격(초).</summary>
+        /// <summary>
+        /// 실제 포그라운드 창이 이 앱의 창인지 다시 확인하는 간격(초). FocusRestoreSchedule의 최소 대기·재시도 간격(1초) 이하로 둘 것.
+        /// 그래야 복구가 성공했는데 Unity가 포커스 이벤트를 보내지 않을 때도 다음 시도보다 먼저 확인해 대기를 끝냄.
+        /// </summary>
         private const double ForegroundCheckIntervalSeconds = 1d;
 
         // 토글 표시에서 켜짐·꺼짐을 한눈에 구분하도록 상태 단어에 입히는 IMGUI 리치 텍스트 색(StatusMessageOverlay가 richText로 그림). 로그에는 넣지 않음.
@@ -364,7 +367,7 @@ namespace HuliacDev.Core
             _schedule.OnFocusLost(now);
             if (_logger != null)
             {
-                _logger.ZLogInformation($"[WindowFocusRestorer] This window is not in the foreground, so keyboard input goes to another window (for example, after a restart by the watchdog Windows does not activate it). Will bring it back in {_schedule.DelaySeconds}s.");
+                _logger.ZLogInformation($"[WindowFocusRestorer] Another window is in the foreground, so keyboard input does not reach this app (also happens when Windows does not activate an app started in the background, such as a watchdog restart). Will bring it back in {_schedule.DelaySeconds}s.");
             }
         }
 
