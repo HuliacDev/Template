@@ -11,6 +11,7 @@
 
 ## 완료
 
+- [x] 숨은 종료 버튼(`GameCloser`)·`closeSetting` 을 없애고 앱 끄기를 Alt+F4로 모음. 자동 재시작 감시가 Alt+F4로 끈 앱도 다시 켜고(종료 코드 76) `F` 키로 포커스 복구와 함께 끄고 켬. 서버 로그를 `start (user restart)`·`start (auto restart)`·`end (Alt + F4)`·`end (Shutdown Scheduler)`·`end_kill (Task Scheduler)` 로 바꿈 — 완료: 2026-11-18 (#80)
 - [x] README "프로젝트 코드에서 쓰기"의 `WaitUntilWatchingAsync` 예시가 시간 제한을 `CancelAfter` 로 걸어, 시간이 다 되면 스레드 풀 타이머에서 취소되고 이어지는 코드가 메인 스레드 밖에서 돎(예시 자체는 그 뒤에 Unity API를 부르지 않아 문제없지만, 따라 쓴 프로젝트가 취소 뒤 화면을 바꾸면 메인 스레드 밖에서 Unity API를 부름). 예시를 `CancelAfterSlim`(PlayerLoop에서 취소)으로 바꾸고 이유를 README 표·예시와 메서드 summary에 적음 — 완료: 2026-11-10 (#77)
 - [x] 랜선으로 연결하는 아두이노용 통신 클래스가 없어 프로젝트마다 UDP·TCP 코드를 따로 만들던 것. `UdpCommandClient`(명령·응답 확인·재전송)와 `TcpLineClient`(접속 유지·재접속·줄 단위 수신) 추가 — 완료: 2026-11-10 (#76)
 - [x] `ArduinoManager` 스캔이 응답 없는 포트마다 핸드셰이크 대기(3초)만큼 늦어지던 것. 모든 포트를 동시에 확인하고, 핸드셰이크 줄을 받은 바이트로 직접 모아 경계에서 잃지 않게 함 — 완료: 2026-11-10 (#75)
