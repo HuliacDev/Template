@@ -159,6 +159,21 @@ namespace HuliacDev.Tests
         }
 
         /// <summary>
+        /// 화면 표시용 감시 상태 줄은 켜짐·꺼짐을 한눈에 구분하도록 상태 단어에만 색을 입히고(지켜보는 중 초록, 뜨는 중 노랑, 꺼짐 빨강),
+        /// 나머지 글은 로그용 줄과 같아야 함.
+        /// </summary>
+        [Test]
+        public void 화면용_감시_상태_줄은_상태_단어에만_색을_입힌다()
+        {
+            Assert.AreEqual("Watchdog: <color=#5BD75B>watching</color> (still restarts after crash or hang)",
+                WindowFocusRestorer.BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus.Watching, false, true, true));
+            Assert.AreEqual("Watchdog: <color=#FFD24A>starting</color> (restarts apply once it is watching)",
+                WindowFocusRestorer.BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus.Starting, true, true, true));
+            Assert.AreEqual("Watchdog: <color=#FF5A5A>off</color> (disabled, Editor or not running - see AutoRestart.log)",
+                WindowFocusRestorer.BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus.Off, true, true, true));
+        }
+
+        /// <summary>
         /// 토글 표시의 각 줄이 상자 너비를 넘으면 글자를 줄여 한 줄에 맞춰야 하고, 들어가면 그대로 둬야 함.
         /// 너무 작아지면 읽을 수 없으므로 기본 크기의 60%와 최소 글자 크기(16) 아래로는 줄이지 않아야 함(그때는 줄을 바꿈).
         /// </summary>

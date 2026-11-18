@@ -44,6 +44,15 @@ namespace HuliacDev.Core
         /// <summary>항상 위가 켜져 있을 때, 이 앱의 창이 모두 항상 위인지 다시 확인하는 간격(초).</summary>
         private const double TopmostCheckIntervalSeconds = 1d;
 
+        /// <summary>실제 포그라운드 창이 이 앱의 창인지 다시 확인하는 간격(초).</summary>
+        private const double ForegroundCheckIntervalSeconds = 1d;
+
+        // 토글 표시에서 켜짐·꺼짐을 한눈에 구분하도록 상태 단어에 입히는 IMGUI 리치 텍스트 색(StatusMessageOverlay가 richText로 그림). 로그에는 넣지 않음.
+        private const string OnColorTag = "<color=#5BD75B>";
+        private const string OffColorTag = "<color=#FF5A5A>";
+        private const string StartingColorTag = "<color=#FFD24A>";
+        private const string ColorEndTag = "</color>";
+
         private readonly AppSettingsProvider _settingsProvider;
         private readonly ILogger<WindowFocusRestorer> _logger;
         private readonly TemplateInputActions _inputActions;
@@ -55,6 +64,7 @@ namespace HuliacDev.Core
         private FocusRestoreSchedule _schedule;
         private IntPtr _windowHandle;
         private double _nextTopmostCheckTime;
+        private double _nextForegroundCheckTime;
 #endif
 
         private bool _isActive;
@@ -156,7 +166,8 @@ namespace HuliacDev.Core
             }
 #endif
 
-            ShowToggleStatus(featureName, isPlural, watchdogLine);
+            ShowToggleStatus(featureName, isPlural,
+                BuildWatchdogStatusLine(watchStatus, AutoRestartWatchdog.IsAltF4RestartOn, AutoRestartWatchdog.IsHangRestartOn, true));
         }
 
         /// <summary>
@@ -177,13 +188,20 @@ namespace HuliacDev.Core
         /// 토글 표시 둘째 줄에 쓸 자동 재시작 감시 상태를 만듦. 토글 키로 꺼도 크래시·응답 없음 재시작은 남는다는 것을 알려,
         /// 점검 중 감시가 모두 꺼졌다고 오해하지 않게 함. 감시가 무엇을 다시 켜는지는 Alt+F4 재시작과 응답 없음 감지가 켜져 있는지에 따라 적음.
         /// 감시가 뜨는 중에는 Alt+F4를 다시 켜지 않고, 크래시도 감시가 앱을 잡기 전이면 다시 켜지 않을 수 있으므로 무엇을 다시 켜는지 적지 않음.
+        /// useColor가 true면 화면 표시용으로 상태 단어에 색(지켜보는 중 초록, 뜨는 중 노랑, 꺼짐 빨강)을 입힘. 로그에는 false로 씀.
         /// </summary>
-        internal static string BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus status, bool isAltF4RestartOn, bool isHangRestartOn)
+        internal static string BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus status, bool isAltF4RestartOn, bool isHangRestartOn, bool useColor = false)
         {
-            if (status == AutoRestartWatchdog.WatchStatus.Off) return "Watchdog: off (disabled, Editor or not running - see AutoRestart.log)";
-            if (status == AutoRestartWatchdog.WatchStatus.Starting) return "Watchdog: starting (restarts apply once it is watching)";
+            if (status == AutoRestartWatchdog.WatchStatus.Off)
+            {
+                return ZString.Concat("Watchdog: ", Colorize("off", OffColorTag, useColor), " (disabled, Editor or not running - see AutoRestart.log)");
+            }
 
-            string state = "Watchdog: watching";
+            if (status == AutoRestartWatchdog.WatchStatus.Starting)
+            {
+                return ZString.Concat("Watchdog: ", Colorize("starting", StartingColorTag, useColor), " (restarts apply once it is watching)");
+            }
+
             string restarts;
             if (isAltF4RestartOn)
             {
@@ -194,7 +212,13 @@ namespace HuliacDev.Core
                 restarts = isHangRestartOn ? " (still restarts after crash or hang)" : " (still restarts after crash)";
             }
 
-            return ZString.Concat(state, restarts);
+            return ZString.Concat("Watchdog: ", Colorize("watching", OnColorTag, useColor), restarts);
+        }
+
+        /// <summary>useColor가 true면 단어를 색 태그로 감싸고, 아니면 그대로 돌려줌.</summary>
+        private static string Colorize(string word, string colorTag, bool useColor)
+        {
+            return useColor ? ZString.Concat(colorTag, word, ColorEndTag) : word;
         }
 
         /// <summary>
@@ -210,13 +234,13 @@ namespace HuliacDev.Core
 
             if (_isRestoreOn)
             {
-                _statusOverlay.Show(ZString.Concat(featureName, " ON\n", watchdogLine));
+                _statusOverlay.Show(ZString.Concat(featureName, " ", OnColorTag, "ON", ColorEndTag, "\n", watchdogLine));
             }
             else
             {
                 string keyName = _inputActions.System.ToggleFocusRestore.GetBindingDisplayString();
                 string pronoun = isPlural ? "them" : "it";
-                _statusOverlay.Show(ZString.Concat(featureName, " OFF - press ", keyName, " to turn ", pronoun, " back on\n", watchdogLine));
+                _statusOverlay.Show(ZString.Concat(featureName, " ", OffColorTag, "OFF", ColorEndTag, " - press ", keyName, " to turn ", pronoun, " back on\n", watchdogLine));
             }
         }
 
@@ -230,6 +254,15 @@ namespace HuliacDev.Core
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
             double now = Time.realtimeSinceStartupAsDouble;
+
+            // Unity의 포커스 상태(Application.isFocused)는 Windows가 앞으로 내보내지 않은 창에서도 true일 수 있음. 감시가 다시 켠 앱처럼
+            // 뒤에서 실행된 프로그램은 화면에 보여도(항상 위면 맨 위에 그려져도) 키보드 입력은 다른 창으로 감. 그래서 실제 포그라운드 창이
+            // 이 앱의 것인지 주기적으로 확인해, 아니면 포커스를 잃은 것처럼 되찾고 돌아왔으면 대기를 끝냄.
+            if (now >= _nextForegroundCheckTime)
+            {
+                _nextForegroundCheckTime = now + ForegroundCheckIntervalSeconds;
+                CheckForeground(now);
+            }
 
             if (_schedule.TryBeginAttempt(now))
             {
@@ -286,17 +319,14 @@ namespace HuliacDev.Core
 
         /// <summary>
         /// 포커스를 잃으면 대기를 시작하고, 돌아오면 시도를 멈추고 창 핸들을 다시 기억함.
+        /// Unity가 포커스를 얻었다고 알려도 실제 포그라운드 창이 이 앱의 것이 아니면(복구 시도가 거부된 경우 등) 기다리기를 계속함.
+        /// 대기를 끝냈다가 CheckForeground가 곧바로 다시 시작하면 실패 경고·로그가 되풀이되기 때문.
         /// </summary>
         private void OnFocusChanged(bool hasFocus)
         {
             if (hasFocus)
             {
-                RememberActiveWindow();
-
-                if (_schedule.OnFocusGained() && _schedule.AttemptCount > 0 && _logger != null)
-                {
-                    _logger.ZLogInformation($"[WindowFocusRestorer] Focus returned after {_schedule.AttemptCount} restore attempt(s).");
-                }
+                if (NativeMethods.IsOwnProcessForeground()) MarkFocusReturned();
                 return;
             }
 
@@ -314,6 +344,40 @@ namespace HuliacDev.Core
             else
             {
                 _logger.ZLogInformation($"[WindowFocusRestorer] Focus lost. Focus restore is off (ToggleFocusRestore key), so the window will not be brought back.");
+            }
+        }
+
+        /// <summary>
+        /// 실제 포그라운드 창이 이 앱의 창인지 확인함. 아니면서 아직 기다리는 중이 아니면 대기를 시작하고(Unity는 포커스가 있다고 보는 경우),
+        /// 맞으면서 기다리는 중이면 대기를 끝냄(Unity가 포커스를 되찾았다고 알리지 않는 경우).
+        /// </summary>
+        private void CheckForeground(double now)
+        {
+            if (NativeMethods.IsOwnProcessForeground())
+            {
+                if (_schedule.IsWaitingForFocus) MarkFocusReturned();
+                return;
+            }
+
+            if (_schedule.IsWaitingForFocus) return;
+
+            _schedule.OnFocusLost(now);
+            if (_logger != null)
+            {
+                _logger.ZLogInformation($"[WindowFocusRestorer] This window is not in the foreground, so keyboard input goes to another window (for example, after a restart by the watchdog Windows does not activate it). Will bring it back in {_schedule.DelaySeconds}s.");
+            }
+        }
+
+        /// <summary>
+        /// 포커스가 돌아왔음을 기록하고 창 핸들을 다시 기억함. 되찾으려고 시도했던 경우에만 몇 번 만에 돌아왔는지 남김.
+        /// </summary>
+        private void MarkFocusReturned()
+        {
+            RememberActiveWindow();
+
+            if (_schedule.OnFocusGained() && _schedule.AttemptCount > 0 && _logger != null)
+            {
+                _logger.ZLogInformation($"[WindowFocusRestorer] Focus returned after {_schedule.AttemptCount} restore attempt(s).");
             }
         }
 
@@ -503,6 +567,18 @@ namespace HuliacDev.Core
                 }
 
                 return GetForegroundWindow() == windowHandle;
+            }
+
+            /// <summary>
+            /// 지금 포그라운드 창(키보드 입력을 받는 창)이 이 프로세스의 창이면 true. 보조 디스플레이 창 등 이 프로세스의 다른 창도 포함함.
+            /// </summary>
+            public static bool IsOwnProcessForeground()
+            {
+                IntPtr foregroundWindow = GetForegroundWindow();
+                if (foregroundWindow == IntPtr.Zero) return false;
+
+                GetWindowThreadProcessId(foregroundWindow, out uint processId);
+                return processId == GetCurrentProcessId();
             }
 
             /// <summary>
