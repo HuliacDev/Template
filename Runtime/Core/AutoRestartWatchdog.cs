@@ -642,13 +642,7 @@ while ($true) {
                 return;
             }
 
-            float configuredHangSeconds = AutoRestartPolicy.SelectHangRestartSeconds(setting.autoRestartSeconds, setting.hangRestartSeconds, out bool usedLegacyKey);
-            if (usedLegacyKey && _logger != null)
-            {
-                _logger.ZLogWarning($"[AutoRestartWatchdog] Settings.json autoRestart.hangRestartSeconds is renamed to autoRestartSeconds. Using the old key ({setting.hangRestartSeconds}s) for now; rename it.");
-            }
-
-            int hangRestartSeconds = AutoRestartPolicy.ResolveHangRestartSeconds(configuredHangSeconds);
+            int hangRestartSeconds = AutoRestartPolicy.ResolveHangRestartSeconds(setting.hangRestartSeconds);
             _isHangRestartOn = hangRestartSeconds > 0;
             int restartDelaySeconds = AutoRestartPolicy.ResolveRestartDelaySeconds(setting.restartDelaySeconds);
             // persistentDataPath는 '/' 구분자를 쓰므로 로그·명령줄에 섞이지 않게 Windows 형식으로 맞춤.
