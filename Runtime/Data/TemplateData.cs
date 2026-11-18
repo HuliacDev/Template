@@ -85,7 +85,7 @@ namespace HuliacDev.Data
     public class AutoRestartSetting
     {
         /// <summary>
-        /// "JSON에서 미지정"을 뜻하는 표시값. hangRestartSeconds는 0이 "끔"이라는 정상 값이라 이 값으로 미지정을 구분함.
+        /// "JSON에서 미지정"을 뜻하는 표시값. autoRestartSeconds는 0이 "끔"이라는 정상 값이라 이 값으로 미지정을 구분함.
         /// </summary>
         public const float UnsetValue = -1f;
 
@@ -94,7 +94,13 @@ namespace HuliacDev.Data
 
         /// <summary>
         /// 창이 Windows에 '응답 없음'으로 판정된 상태가 이 시간(초) 동안 이어지면 강제 종료 후 다시 실행함.
-        /// 표시값 -1(생략)을 포함한 음수면 미지정으로 보고 기본값 60초를 쓰며, 0이면 응답 없음 감지를 끔. 10초 미만 양수는 10초로 올려 적용함.
+        /// 표시값 -1(생략)을 포함한 음수면 미지정으로 보고 기본값 30초를 쓰며, 0이면 응답 없음 감지를 끔. 10초 미만 양수는 10초로 올려 적용함.
+        /// </summary>
+        public float autoRestartSeconds = UnsetValue;
+
+        /// <summary>
+        /// autoRestartSeconds의 예전(26.11.18-3까지) 키 이름. autoRestartSeconds를 적지 않았을 때만 읽고 경고를 남김. 새 설정에는 쓰지 말 것.
+        /// 이름만 바꾸면 이 키로 응답 없음 감지를 꺼 둔(0) 현장이 패키지를 올릴 때 조용히 기본값으로 켜지므로 읽어 줌.
         /// </summary>
         public float hangRestartSeconds = UnsetValue;
 

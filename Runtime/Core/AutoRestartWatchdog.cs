@@ -93,7 +93,7 @@ param(
     [Parameter(Mandatory = $true)][int]$AppPid,
     [Parameter(Mandatory = $true)][string]$LogPath,
     [string]$ReadyEventName = '',
-    [int]$HangRestartSeconds = 60,
+    [int]$HangRestartSeconds = 30,
     [int]$RestartDelaySeconds = 5,
     [int]$MaxRestartDelaySeconds = 600,
     [int]$QuickExitSeconds = 60
@@ -370,7 +370,7 @@ while ($true) {
 
         /// <summary>
         /// 감시 스크립트가 이번 실행을 다시 켠 이유. 다시 켠 실행이 아니면 null.
-        /// "exit code -1073741819 (0xC0000005)", "not responding for 60s", "restart requested by the app (exit code 75)",
+        /// "exit code -1073741819 (0xC0000005)", "not responding for 30s", "restart requested by the app (exit code 75)",
         /// "closed with Alt+F4 (exit code 76)" 같은 로그·표시용 문장임.
         /// </summary>
         public static string RestartReason => StartupRestartReason;
@@ -642,7 +642,13 @@ while ($true) {
                 return;
             }
 
-            int hangRestartSeconds = AutoRestartPolicy.ResolveHangRestartSeconds(setting.hangRestartSeconds);
+            float configuredHangSeconds = AutoRestartPolicy.SelectHangRestartSeconds(setting.autoRestartSeconds, setting.hangRestartSeconds, out bool usedLegacyKey);
+            if (usedLegacyKey && _logger != null)
+            {
+                _logger.ZLogWarning($"[AutoRestartWatchdog] Settings.json autoRestart.hangRestartSeconds is renamed to autoRestartSeconds. Using the old key ({setting.hangRestartSeconds}s) for now; rename it.");
+            }
+
+            int hangRestartSeconds = AutoRestartPolicy.ResolveHangRestartSeconds(configuredHangSeconds);
             _isHangRestartOn = hangRestartSeconds > 0;
             int restartDelaySeconds = AutoRestartPolicy.ResolveRestartDelaySeconds(setting.restartDelaySeconds);
             // persistentDataPath는 '/' 구분자를 쓰므로 로그·명령줄에 섞이지 않게 Windows 형식으로 맞춤.

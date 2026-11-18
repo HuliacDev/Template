@@ -4,20 +4,27 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
 
 ---
 
-### [2026-11-19 01:10] Claude → Antigravity · README에 오늘 바뀐 운영 내용 반영 (docs/readme-altf4-watchdog)
+### [2026-11-18 23:10] Claude → Antigravity + 서브에이전트 · 응답 없음 판정 키 autoRestartSeconds·기본 30초 (feat/auto-restart-seconds)
+- 요청: 응답 없음 판정을 30초로(Template 기본값과 0_Startup 모두), 키 이름을 `autoRestartSeconds` 로. 응답 없음 상태에서 Force Single Instance가 문제를 일으키는지 확인.
+- 변경: `AutoRestartSetting.autoRestartSeconds`(기본 30초), 예전 키 `hangRestartSeconds` 는 새 키가 없을 때만 읽고 경고(`AutoRestartPolicy.SelectHangRestartSeconds`). 감시 스크립트 param 기본값·문구 30초. USAGE에 Force Single Instance와 겹치지 않는 이유(강제 종료한 프로세스가 끝난 것을 확인한 뒤에만 다시 켬) 추가. 오늘 앞서 HANDOFF·TODO에 11-19로 잘못 적은 날짜를 고침. 버전 26.11.18-4.
+- Claude 확인: 검증 프로젝트(file: 참조, 배치 모드, 0_Startup의 새 Settings.json 포함) PlayMode 191/191, 경고 0, Windows 플레이어 스크립트 컴파일 성공. 보탠 단언 뒤 `AutoRestartPolicyTests` 15/15.
+- 교차 검증 (agy gemini-4-argon-high + 서브에이전트, 1묶음): 키 선택·기본값·경고 조건·테스트, 문서·0_Startup 설정과 Force Single Instance 설명 → 둘 다 통과. 서브에이전트 참고: 새 키 0과 예전 키가 함께 있을 때·예전 키만 양수일 때 테스트 없음 → 단언 보탬.
+- 남은 것: 예전 키 경고는 Windows 빌드에서 감시를 띄울 때만 남음(에디터에서는 보이지 않음).
+
+### [2026-11-18 22:48] Claude → Antigravity · README에 오늘 바뀐 운영 내용 반영 (docs/readme-altf4-watchdog)
 - 요청: Template·0_Startup README를 각각 맞는 내용으로 갱신.
 - 변경: README에 `F` 키 표시(ON/OFF와 감시 상태), 앱 끄는 법(숨은 종료 버튼 없음, `F` 로 끈 뒤 Alt+F4), 서버 로그 문구, 예약 종료 편집 도구를 다시 빌드해 현장 PC에서 저장해야 가드 스크립트가 바뀌는 점을 보탬. 문서만 바뀌어 버전·CHANGELOG는 그대로.
 - agy (gemini-4-argon-high): 설명과 코드(로그 상수·표시 문구·편집 도구 저장 시 백업 작업 갱신) 일치, 링크 앵커, 공개 저장소 규칙·다섯 칸 구조 → 통과
 - 남은 것: 없음.
 
-### [2026-11-19 00:20] Claude → Antigravity + 서브에이전트 · F 키 표시의 각 줄을 한 줄로 (feat/toggle-status-one-line)
+### [2026-11-18 22:40] Claude → Antigravity + 서브에이전트 · F 키 표시의 각 줄을 한 줄로 (feat/toggle-status-one-line)
 - 요청: F 키 표시에서 포커스 줄과 감시 줄이 각각 한 줄에 들어오게(상자 너비가 화면 60% 고정이라 포커스 줄이 두세 줄로 접혔음).
 - 변경: `StatusMessageOverlay` 가 `CalcSize` 로 가장 긴 줄 너비를 재어 상자 너비를 맞추고(화면 90%까지), 넘치면 `ResolveFitFontSize` 로 글자를 비례해 줄임(기본 크기 60%·최소 16 아래로는 줄이지 않고 줄 바꿈). 문구는 그대로. 버전 26.11.18-3.
 - Claude 확인: 검증 프로젝트(file: 참조, 배치 모드) PlayMode 190/190, 컴파일 경고 0, Windows 플레이어 스크립트 컴파일 성공.
 - 교차 검증 (agy gemini-4-argon-high + 서브에이전트, 1묶음): 너비·글자 크기 계산과 무할당, `ResolveFitFontSize` 경계·테스트 → 둘 다 통과. 서브에이전트: USAGE 문구가 최소 16·줄 바꿈을 빠뜨리고 예시 문장 앞에 끼어 있음(낮음, 문구) → 고침.
 - 남은 것: 실제 해상도별 표시는 확인하지 않음(배치 모드라 화면을 그리지 않음). 동적 글꼴의 글자 폭 반올림으로 비례 계산과 조금 어긋나면 줄인 크기에서도 마지막 단어가 줄 바뀔 수 있음(잘리지는 않음).
 
-### [2026-11-18 23:00] Claude → Antigravity + 서브에이전트 · F 키 표시에 감시 상태 줄 추가 (feat/toggle-watchdog-status)
+### [2026-11-18 22:00] Claude → Antigravity + 서브에이전트 · F 키 표시에 감시 상태 줄 추가 (feat/toggle-watchdog-status)
 - 요청: F 키를 눌렀을 때 문구에 watchdog 관련 내용도 넣기(사용자가 고른 안: 둘째 줄에 감시 상태를 항상 적음).
 - 변경: 토글 표시·로그에 `Watchdog: watching|starting|off` 와 감시가 다시 켜는 경우(crash·hang·Alt+F4)를 적음. `AutoRestartWatchdog` 에 `WatchStatus`·`CurrentWatchStatus`·`IsHangRestartOn`, 감시 스크립트가 다시 켠 앱에 응답 없음 판정 시간을 환경 변수로 넘김. `StatusMessageOverlay` 상자 높이를 줄 수에 맞춤. 버전 26.11.18-2.
 - Claude 확인: 검증 프로젝트(file: 참조, 배치 모드) PlayMode 189/189, 컴파일 경고 0, Windows 플레이어 스크립트 컴파일 성공.
