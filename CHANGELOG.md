@@ -1,6 +1,12 @@
 # Changelog
 모든 주요 변경 사항을 이 파일에 기록합니다.
 
+## [26.11.18-5] - 2026-11-18
+
+### Changed
+- **응답 없음 판정 시간의 키 이름을 `hangRestartSeconds`로 되돌림(`Runtime/Data/TemplateData.cs`, `Runtime/Core/AutoRestartPolicy.cs`, `Runtime/Core/AutoRestartWatchdog.cs`):** 26.11.18-4에서 바꾼 `autoRestartSeconds`는 감시 전체의 시간처럼 읽혀, 원래 뜻(창이 '응답 없음'으로 몇 초 이어지면 다시 켤지)이 드러나는 원래 이름으로 되돌림. 기본값 30초는 그대로이며, 예전 키를 읽던 처리와 경고는 필요 없어져 뺌. `AutoRestartPolicyTests`의 키 선택 테스트를 빼고 0으로 끄는 경우를 기본값 테스트에 넣음.
+  - **Breaking:** 26.11.18-4에 맞춰 `autoRestartSeconds`를 적은 프로젝트는 `hangRestartSeconds`로 되돌릴 것(그대로 두면 무시되고 기본값 30초를 씀).
+
 ## [26.11.18-4] - 2026-11-18
 
 ### Changed

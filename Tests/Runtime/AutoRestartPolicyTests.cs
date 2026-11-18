@@ -14,7 +14,7 @@ namespace HuliacDev.Tests
     public class AutoRestartPolicyTests
     {
         /// <summary>
-        /// Settings.json에 autoRestartSeconds를 적지 않으면(표시값 -1) 기본값 30초를 써야 함.
+        /// Settings.json에 hangRestartSeconds를 적지 않으면(표시값 -1) 기본값 30초를 써야 하고, 0을 적으면 감지를 꺼야 함.
         /// 기본값이 0이면 키를 빠뜨린 프로젝트에서 응답 없음 감지가 조용히 꺼짐.
         /// </summary>
         [Test]
@@ -22,39 +22,15 @@ namespace HuliacDev.Tests
         {
             AutoRestartSetting setting = JsonUtility.FromJson<AutoRestartSetting>("{\"enabled\": true}");
 
-            float configured = AutoRestartPolicy.SelectHangRestartSeconds(setting.autoRestartSeconds, setting.hangRestartSeconds, out bool usedLegacyKey);
-            Assert.IsFalse(usedLegacyKey);
-            Assert.AreEqual(30, AutoRestartPolicy.ResolveHangRestartSeconds(configured));
+            Assert.AreEqual(30, AutoRestartPolicy.ResolveHangRestartSeconds(setting.hangRestartSeconds));
             Assert.AreEqual(5, AutoRestartPolicy.ResolveRestartDelaySeconds(setting.restartDelaySeconds));
+
+            AutoRestartSetting off = JsonUtility.FromJson<AutoRestartSetting>("{\"enabled\": true, \"hangRestartSeconds\": 0}");
+            Assert.AreEqual(0, AutoRestartPolicy.ResolveHangRestartSeconds(off.hangRestartSeconds), "0으로 끈 응답 없음 감지가 켜짐");
         }
 
         /// <summary>
-        /// 응답 없음 판정 시간은 autoRestartSeconds를 우선하고, 그 키가 없을 때만 예전 키 hangRestartSeconds를 읽어 경고 대상으로 알려야 함.
-        /// 예전 키를 버리면 그 키로 응답 없음 감지를 꺼 둔(0) 현장이 패키지를 올릴 때 조용히 30초 감지가 켜짐.
-        /// </summary>
-        [Test]
-        public void 응답_없음_판정_시간은_새_키를_우선하고_없으면_예전_키를_읽는다()
-        {
-            AutoRestartSetting newKey = JsonUtility.FromJson<AutoRestartSetting>("{\"enabled\": true, \"autoRestartSeconds\": 45, \"hangRestartSeconds\": 0}");
-            Assert.AreEqual(45f, AutoRestartPolicy.SelectHangRestartSeconds(newKey.autoRestartSeconds, newKey.hangRestartSeconds, out bool usedLegacyKey));
-            Assert.IsFalse(usedLegacyKey, "새 키가 있는데 예전 키를 씀");
-
-            AutoRestartSetting legacyOff = JsonUtility.FromJson<AutoRestartSetting>("{\"enabled\": true, \"hangRestartSeconds\": 0}");
-            float configured = AutoRestartPolicy.SelectHangRestartSeconds(legacyOff.autoRestartSeconds, legacyOff.hangRestartSeconds, out usedLegacyKey);
-            Assert.IsTrue(usedLegacyKey, "예전 키를 읽고도 경고 대상으로 알리지 않음");
-            Assert.AreEqual(0, AutoRestartPolicy.ResolveHangRestartSeconds(configured), "예전 키로 끈 응답 없음 감지가 켜짐");
-
-            AutoRestartSetting newKeyOff = JsonUtility.FromJson<AutoRestartSetting>("{\"enabled\": true, \"autoRestartSeconds\": 0, \"hangRestartSeconds\": 60}");
-            Assert.AreEqual(0f, AutoRestartPolicy.SelectHangRestartSeconds(newKeyOff.autoRestartSeconds, newKeyOff.hangRestartSeconds, out usedLegacyKey), "새 키 0(끔)을 미지정으로 봄");
-            Assert.IsFalse(usedLegacyKey);
-
-            AutoRestartSetting legacyOnly = JsonUtility.FromJson<AutoRestartSetting>("{\"enabled\": true, \"hangRestartSeconds\": 60}");
-            Assert.AreEqual(60f, AutoRestartPolicy.SelectHangRestartSeconds(legacyOnly.autoRestartSeconds, legacyOnly.hangRestartSeconds, out usedLegacyKey));
-            Assert.IsTrue(usedLegacyKey);
-        }
-
-        /// <summary>
-        /// autoRestartSeconds가 0이면 응답 없음 감지를 끄고(0), 음수는 표시값(-1)이 아니어도 미지정으로 보고,
+        /// hangRestartSeconds가 0이면 응답 없음 감지를 끄고(0), 음수는 표시값(-1)이 아니어도 미지정으로 보고,
         /// 최소값보다 작은 양수는 최소값으로 올려야 함.
         /// </summary>
         [Test]

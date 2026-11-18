@@ -4,6 +4,13 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
 
 ---
 
+### [2026-11-18 23:55] Claude → Antigravity + 서브에이전트 · 응답 없음 판정 키를 hangRestartSeconds로 되돌림 (fix/hang-restart-seconds-name)
+- 요청: `autoRestartSeconds` 가 뜻과 맞지 않아 원래 이름 `hangRestartSeconds` 로 되돌리기(기본 30초는 유지).
+- 변경: `autoRestartSeconds` 필드·`SelectHangRestartSeconds`·예전 키 경고를 빼고 `hangRestartSeconds` 를 바로 읽음. 키 선택 테스트를 빼고 0으로 끄는 경우를 기본값 테스트에 넣음. SETTINGS·USAGE 키 이름, CHANGELOG 26.11.18-5(Breaking: -4에 맞춰 `autoRestartSeconds` 를 적은 프로젝트는 되돌릴 것).
+- Claude 확인: 검증 프로젝트(file: 참조, 배치 모드, 0_Startup의 되돌린 Settings.json 포함) PlayMode 190/190, 경고 0. Windows 플레이어 스크립트 컴파일 성공.
+- 교차 검증 (agy gemini-4-argon-high + 서브에이전트, 1묶음): 남은 참조, 기본값·0이면 끔, 문서·CHANGELOG와 0_Startup 문구 → 둘 다 통과. 둘 다 0_Startup `Settings.json` 의 `alwaysOnTop` 변경을 짚음 → 사용자가 바꾼 값으로 확인, 0_Startup에서 따로 커밋.
+- 남은 것: 없음.
+
 ### [2026-11-18 23:10] Claude → Antigravity + 서브에이전트 · 응답 없음 판정 키 autoRestartSeconds·기본 30초 (feat/auto-restart-seconds)
 - 요청: 응답 없음 판정을 30초로(Template 기본값과 0_Startup 모두), 키 이름을 `autoRestartSeconds` 로. 응답 없음 상태에서 Force Single Instance가 문제를 일으키는지 확인.
 - 변경: `AutoRestartSetting.autoRestartSeconds`(기본 30초), 예전 키 `hangRestartSeconds` 는 새 키가 없을 때만 읽고 경고(`AutoRestartPolicy.SelectHangRestartSeconds`). 감시 스크립트 param 기본값·문구 30초. USAGE에 Force Single Instance와 겹치지 않는 이유(강제 종료한 프로세스가 끝난 것을 확인한 뒤에만 다시 켬) 추가. 오늘 앞서 HANDOFF·TODO에 11-19로 잘못 적은 날짜를 고침. 버전 26.11.18-4.
