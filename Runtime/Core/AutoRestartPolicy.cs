@@ -42,6 +42,15 @@ namespace HuliacDev.Core
         }
 
         /// <summary>
+        /// 다시 켜진 앱이 감시 스크립트에게서 받은 응답 없음 판정 시간(환경 변수 문자열)으로 응답 없음 감지가 켜져 있는지 정함.
+        /// 0이면 꺼짐. 값이 없거나 숫자가 아니면(이 값을 넘기지 않던 예전 감시) 기본값처럼 켜진 것으로 봄.
+        /// </summary>
+        public static bool IsHangRestartOn(string hangRestartSecondsText)
+        {
+            return !int.TryParse(hangRestartSecondsText, out int seconds) || seconds > 0;
+        }
+
+        /// <summary>
         /// 재시작 대기 시간(초)을 정함. 0 이하(미지정)면 기본값, 최소값보다 작은 양수면 최소값, 상한보다 크면 상한을 돌려줌.
         /// 감시 스크립트가 간격을 상한으로 자르므로, 시작 로그에 적는 값도 실제 대기와 같게 여기서 자름.
         /// </summary>

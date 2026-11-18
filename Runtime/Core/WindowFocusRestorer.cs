@@ -131,11 +131,14 @@ namespace HuliacDev.Core
             _isRestoreOn = !_isRestoreOn;
             AutoRestartWatchdog.SetAltF4Restart(this, _isRestoreOn);
 
-            string featureName = GetToggleFeatureName(out bool isPlural);
+            // 감시 상태는 OS에 물으므로 한 번만 읽어 기능 이름과 감시 상태 줄에 함께 씀.
+            AutoRestartWatchdog.WatchStatus watchStatus = AutoRestartWatchdog.CurrentWatchStatus;
+            string featureName = BuildToggleFeatureName(_useAlwaysOnTop, watchStatus != AutoRestartWatchdog.WatchStatus.Off, out bool isPlural);
+            string watchdogLine = BuildWatchdogStatusLine(watchStatus, AutoRestartWatchdog.IsAltF4RestartOn, AutoRestartWatchdog.IsHangRestartOn);
 
             if (_logger != null)
             {
-                _logger.ZLogInformation($"[WindowFocusRestorer] {featureName} turned {(_isRestoreOn ? "on" : "off")} by the ToggleFocusRestore key.");
+                _logger.ZLogInformation($"[WindowFocusRestorer] {featureName} turned {(_isRestoreOn ? "on" : "off")} by the ToggleFocusRestore key. {watchdogLine}");
             }
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
@@ -153,20 +156,12 @@ namespace HuliacDev.Core
             }
 #endif
 
-            ShowToggleStatus(featureName, isPlural);
+            ShowToggleStatus(featureName, isPlural, watchdogLine);
         }
 
         /// <summary>
-        /// 토글 키가 함께 끄고 켜는 기능의 표시 이름을 돌려줌. Alt+F4 재시작은 감시가 지켜보고 있거나 지켜보기 시작하는 중일 때만 적음
-        /// (감시가 없으면 Alt+F4로 꺼도 다시 켜지지 않으므로). 기능이 둘 이상이면 isPlural이 true임.
-        /// </summary>
-        private string GetToggleFeatureName(out bool isPlural)
-        {
-            return BuildToggleFeatureName(_useAlwaysOnTop, AutoRestartWatchdog.IsWatchingOrStarting, out isPlural);
-        }
-
-        /// <summary>
-        /// 토글 키가 끄고 켜는 기능의 표시 이름을 고름. 항상 위는 켰을 때만, Alt+F4 재시작은 적용될 때만 넣음. 문자열을 새로 만들지 않도록 상수를 돌려줌.
+        /// 토글 키가 끄고 켜는 기능의 표시 이름을 고름. 항상 위는 켰을 때만, Alt+F4 재시작은 감시가 지켜보고 있거나 지켜보기 시작하는 중일 때만 넣음
+        /// (감시가 없으면 Alt+F4로 꺼도 다시 켜지지 않으므로). 기능이 둘 이상이면 isPlural이 true임. 문자열을 새로 만들지 않도록 상수를 돌려줌.
         /// </summary>
         internal static string BuildToggleFeatureName(bool useAlwaysOnTop, bool includeAltF4Restart, out bool isPlural)
         {
@@ -179,10 +174,34 @@ namespace HuliacDev.Core
         }
 
         /// <summary>
-        /// 토글 키가 끄고 켜는 기능의 켜짐·꺼짐을 화면 위쪽에 잠깐 표시함. 상태가 로그에만 남으면
+        /// 토글 표시 둘째 줄에 쓸 자동 재시작 감시 상태를 만듦. 토글 키로 꺼도 크래시·응답 없음 재시작은 남는다는 것을 알려,
+        /// 점검 중 감시가 모두 꺼졌다고 오해하지 않게 함. 감시가 무엇을 다시 켜는지는 Alt+F4 재시작과 응답 없음 감지가 켜져 있는지에 따라 적음.
+        /// 감시가 뜨는 중에는 Alt+F4를 다시 켜지 않고, 크래시도 감시가 앱을 잡기 전이면 다시 켜지 않을 수 있으므로 무엇을 다시 켜는지 적지 않음.
+        /// </summary>
+        internal static string BuildWatchdogStatusLine(AutoRestartWatchdog.WatchStatus status, bool isAltF4RestartOn, bool isHangRestartOn)
+        {
+            if (status == AutoRestartWatchdog.WatchStatus.Off) return "Watchdog: off (disabled, Editor or not running - see AutoRestart.log)";
+            if (status == AutoRestartWatchdog.WatchStatus.Starting) return "Watchdog: starting (restarts apply once it is watching)";
+
+            string state = "Watchdog: watching";
+            string restarts;
+            if (isAltF4RestartOn)
+            {
+                restarts = isHangRestartOn ? " (restarts after crash, hang or Alt+F4)" : " (restarts after crash or Alt+F4)";
+            }
+            else
+            {
+                restarts = isHangRestartOn ? " (still restarts after crash or hang)" : " (still restarts after crash)";
+            }
+
+            return ZString.Concat(state, restarts);
+        }
+
+        /// <summary>
+        /// 토글 키가 끄고 켜는 기능의 켜짐·꺼짐을 화면 위쪽에 잠깐 표시하고, 둘째 줄에 자동 재시작 감시 상태를 보여 줌. 상태가 로그에만 남으면
         /// 유지보수 중 꺼 둔 채 잊기 쉬워, 끌 때는 다시 켜는 키도 함께 보여 줌. 키 이름은 ConfigureInputBindings로 바꾼 바인딩을 그대로 따름.
         /// </summary>
-        private void ShowToggleStatus(string featureName, bool isPlural)
+        private void ShowToggleStatus(string featureName, bool isPlural, string watchdogLine)
         {
             if (!_statusOverlay)
             {
@@ -191,13 +210,13 @@ namespace HuliacDev.Core
 
             if (_isRestoreOn)
             {
-                _statusOverlay.Show(ZString.Concat(featureName, " ON"));
+                _statusOverlay.Show(ZString.Concat(featureName, " ON\n", watchdogLine));
             }
             else
             {
                 string keyName = _inputActions.System.ToggleFocusRestore.GetBindingDisplayString();
                 string pronoun = isPlural ? "them" : "it";
-                _statusOverlay.Show(ZString.Concat(featureName, " OFF - press ", keyName, " to turn ", pronoun, " back on"));
+                _statusOverlay.Show(ZString.Concat(featureName, " OFF - press ", keyName, " to turn ", pronoun, " back on\n", watchdogLine));
             }
         }
 

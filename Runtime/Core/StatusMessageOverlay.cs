@@ -18,6 +18,9 @@ namespace HuliacDev.Core
         /// <summary>글자 크기의 최소값. 낮은 해상도 창에서도 읽을 수 있게 함.</summary>
         private const int MinFontSize = 16;
 
+        // 상자 높이를 글 높이에 맞추려고 CalcHeight에 넘기는 내용. OnGUI가 매 프레임 불리므로 새로 만들지 않고 재사용함.
+        private readonly GUIContent _content = new GUIContent();
+
         private string _message;
         private GUIStyle _boxStyle;
         private float _hideTime;
@@ -57,7 +60,7 @@ namespace HuliacDev.Core
         }
 
         /// <summary>
-        /// 화면 위쪽 가운데에 반투명 배경 상자와 함께 메시지를 그림.
+        /// 화면 위쪽 가운데에 반투명 배경 상자와 함께 메시지를 그림. 상자 높이는 메시지 줄 수에 맞춤.
         /// </summary>
         private void OnGUI()
         {
@@ -74,9 +77,11 @@ namespace HuliacDev.Core
             _boxStyle.fontSize = Mathf.Max(MinFontSize, Mathf.RoundToInt(Screen.height * FontSizeRatio));
 
             float width = Screen.width * 0.6f;
-            float height = _boxStyle.fontSize * 2.5f;
+            // 여러 줄(줄바꿈이나 자동 줄 바꿈)이어도 잘리지 않게 글 높이에 위아래 여백을 더하고, 한 줄이면 예전 높이(글자 2.5배)를 둠.
+            _content.text = _message;
+            float height = Mathf.Max(_boxStyle.fontSize * 2.5f, _boxStyle.CalcHeight(_content, width) + _boxStyle.fontSize);
             Rect rect = new Rect((Screen.width - width) * 0.5f, Screen.height * 0.1f, width, height);
-            GUI.Box(rect, _message, _boxStyle);
+            GUI.Box(rect, _content, _boxStyle);
         }
     }
 }

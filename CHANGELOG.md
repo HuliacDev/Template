@@ -1,6 +1,11 @@
 # Changelog
 모든 주요 변경 사항을 이 파일에 기록합니다.
 
+## [26.11.18-2] - 2026-11-18
+
+### Changed
+- **`F` 키 표시에 자동 재시작 감시 상태 줄 추가(`Runtime/Core/WindowFocusRestorer.cs`, `Runtime/Core/AutoRestartWatchdog.cs`, `Runtime/Core/StatusMessageOverlay.cs`):** 토글할 때 화면 위쪽 둘째 줄과 로그에 감시 상태(`Watchdog: watching`·`starting`·`off`)와 감시가 무엇을 다시 켜는지를 적음(예: 끄면 "Watchdog: watching (still restarts after crash or hang)", 감시가 앱을 잡기 전 몇 초는 "Watchdog: starting (restarts apply once it is watching)", 감시가 없으면 "Watchdog: off (disabled, Editor or not running - see AutoRestart.log)"). 점검하려고 `F`로 꺼도 크래시·응답 없음 재시작은 남는다는 것을 알 수 있게 하기 위함. 응답 없음 감지를 끈 감시(`hangRestartSeconds` 0)면 hang을 빼고 적음. 감시가 다시 켠 앱은 그사이 바뀐 `Settings.json`이 아니라 지켜보는 감시의 값을 따르도록, 감시 스크립트가 판정 시간을 환경 변수로 넘김. 표시 상자 높이를 메시지 줄 수에 맞게 늘림(한 줄이면 예전과 같음). `WindowFocusRestorerTests`·`AutoRestartPolicyTests`에 1건씩 추가.
+
 ## [26.11.18-1] - 2026-11-18
 
 현장에서 앱을 끄는 방법을 Alt+F4 하나로 모음. 숨은 종료 버튼을 없애고, 자동 재시작 감시가 Alt+F4로 끈 앱도 다시 켜며, 점검할 때는 `F` 키로 끈 뒤 Alt+F4로 끔. 서버 로그 문구도 누가 켜고 껐는지 구분되게 바꿈.
