@@ -95,6 +95,26 @@ _soundManager.PlaySFX("narration");
 - 미리 읽은 클립은 다른 클립처럼 `ClearCache()`를 부를 때까지 메모리에 남습니다.
 - `StopSFX()`는 재생 중인 효과음과 함께, 읽기를 기다리던 `PlaySFX` 요청도 취소합니다(읽기가 끝나도 재생하지 않음). 미리 불러오기는 취소하지 않습니다.
 
+## 배경 영상을 멈칫 없이 반복 (VideoManager.PlaySeamlessLoopAsync)
+
+`VideoPlayer`의 반복(`isLooping`)은 끝에서 되감는 동안 마지막 프레임이 더 오래 보여 반복할 때마다 멈칫합니다. `PlaySeamlessLoopAsync`는 같은 영상을 재생기 두 개로 번갈아 틀어, 되감기를 화면 뒤에서 미리 끝냅니다.
+
+```csharp
+_videoManager.WireRawImageAndRenderTexture(videoPlayer, rawImage, new Vector2Int(1920, 1080));
+string url = _videoManager.ResolvePlayableUrl("Videos/Background.mp4");
+bool isPlaying = await _videoManager.PlaySeamlessLoopAsync(videoPlayer, rawImage, url, this.GetCancellationTokenOnDestroy());
+
+// 화면에서 내릴 때
+_videoManager.StopSeamlessLoop(videoPlayer);
+```
+
+- 소리 없이 재생합니다(`audioOutputMode`를 끔). 소리가 필요한 영상에는 쓰지 마세요.
+- 두 번째 재생기는 안에서 만들고(`videoPlayer`의 자식 `SeamlessLoopStandby`) 매 프레임 전환도 `VideoManager`가 합니다. 디코더와 RenderTexture가 하나씩 더 들므로, 여러 영상을 동시에 트는 화면에서는 부하를 확인하세요.
+- 반복하는 동안 `videoPlayer`를 직접 조작하지 마세요. 같은 `videoPlayer`로 `PrepareAndPlayAsync`·`UIManager.SetVideo`를 부르면 반복이 끝나고 새 영상이 재생됩니다.
+- `videoPlayer`의 게임 오브젝트를 껐다 켜면 재생이 멈추므로 다시 부르세요.
+- 재생 중 오류가 나면 화면을 바꾸는 코드가 있으면 `videoPlayer.errorReceived`를 구독하고, 같은 처리기를 `errorHandler` 인자로도 넘기세요(두 번째 재생기의 오류를 받음). 두 번째 재생기에 오류가 나도 재생은 이어지므로(보이는 동안이면 원래 재생기의 반복으로, 쉬는 동안이면 다시 준비), 화면을 내릴 필요가 없으면 넘기지 않아도 됩니다.
+- 처음과 끝 그림이 이어지지 않는 영상의 튐은 고치지 못합니다. 영상을 이어지게 만드세요.
+
 ## 외부 API 호출 로깅 (wavespeed, GPT 등)
 
 프로젝트 내에서 외부 API를 호출할 때 사내 로깅 서버(`Settings.json`의 `apiUrl`)로 호출 및 반환 상태를 전송해야 하는 경우 세 가지 방식 중 상황에 맞춰 사용할 수 있습니다.

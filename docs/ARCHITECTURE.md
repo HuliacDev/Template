@@ -50,7 +50,7 @@ Tests/
 | **UI & Media** | `UIManager` | uGUI/TextMeshPro 비동기 폰트 프리로드/일괄 적용, 텍스처 VRAM 압축(`compress`) 제어. `Set*`가 새로 붙이는 이미지·글자·영상은 클릭을 받지 않도록 `raycastTarget`을 끄고(대상에 Button 등 Selectable이 있거나 버튼 배경이면 켬), 대상에 다른 Graphic이 이미 있으면 붙이지 않고 경고를 남김 |
 | | `FadeManager` | 화면 페이드 인/아웃(DOTween/UniTask), 커스텀 색상(`Color? color`) 및 `SortingOrder` 제어 |
 | | `SoundManager` | BGM/SFX 비동기 재생, 미리 불러오기(`PreloadAsync`), 마스터/BGM/SFX 개별 볼륨 및 음소거(`Mute`), DOTween 페이드 충돌 방어 |
-| | `VideoManager` | 비디오 비동기 프리로드/재생(`PrepareAndPlayAsync`는 재생을 시작했는지 bool로 돌려줌), 고아 RenderTexture 메모리 최적 해제 ($O(N+M)$) |
+| | `VideoManager` | 비디오 비동기 프리로드/재생(`PrepareAndPlayAsync`는 재생을 시작했는지 bool로 돌려줌), 무음 배경 영상의 멈칫 없는 반복(`PlaySeamlessLoopAsync`), 고아 RenderTexture 메모리 최적 해제 ($O(N+M)$) |
 | **Network** | `NetworkStatusService` | R3 기반 실시간 네트워크 도달성/끊김/복구 모니터링, Windows의 인터넷 판정 반영 (오프라인 키오스크 초기 알림 억제) |
 | | `ApiManagerBase` | 시작/종료/비활동/외부 API 호출 이력 사내 서버 전송 추상 베이스 클래스 |
 | | `ApiRetryUtil` | 고정 간격 재시도 및 소켓/DNS 네트워크 예외 격리를 지원하는 WebRequest 안정적 재시도, 응답 본문 반환(`GetTextWithRetryAsync`), 인터넷이 없으면 전송 생략 |

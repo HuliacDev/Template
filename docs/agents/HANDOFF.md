@@ -4,6 +4,19 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
 
 ---
 
+### [2026-11-24 11:20] Claude → Antigravity + 서브에이전트 · 배경 영상을 멈칫 없이 반복 (feat/seamless-video-loop)
+- 요청: 배경 영상 반복 지점의 멈칫을 없애는 `SeamlessVideoLoop`(재생기 두 개를 번갈아 씀)를 패키지로 옮기기.
+- 변경: `VideoManager.PlaySeamlessLoopAsync`·`StopSeamlessLoop`(매 프레임 전환은 `VideoManager.LateUpdate`), `SeamlessVideoLoop`, 전환 시각 계산 `SeamlessLoopTimer`. 공개 `PrepareAndPlayAsync` 는 같은 `VideoPlayer` 의 반복을 먼저 멈춤. 버전 26.11.24-1.
+- Claude 확인: 검증 프로젝트(file: 참조, 배치 모드) 첫 커밋 때 PlayMode 208/208(실제 영상 11건, 타이머 6건). Windows 빌드 60Hz 실측: `isLooping` 은 mp4에서 매번 마지막 4번·0번 프레임 건너뜀, 새 방식은 H.264·B프레임·오디오 트랙·VP8·32초 영상에서 매번 마지막 2번·첫 2번(4K는 창 없는 배치 모드 60fps로 10번). 쉬는 재생기의 첫 프레임은 확인한 전환에서 모두 0번. 첫 실측 뒤의 창 실측은 자동 재시작 감시가 다시 켠 벤치가 함께 돌아 부하가 있었음(새 방식의 이음새는 그대로 2·2). 장시간 시험(창 없는 배치 모드 60fps, 1초 영상 45분, 리뷰 반영 전 빌드이며 전환 방식은 같음): 전환 2,699번 모두 첫 프레임 0번, 오류 없음, 전용 메모리 466~526MB·핸들 1,434~1,599개로 늘어나는 추세 없음. 81,000프레임 중 한 번 333ms 머묾(같은 PC에서 Unity 빌드를 돌린 시간대, 원인은 확정하지 않음). 하루 이상 연속 실행은 하지 않음.
+- 교차 검증 (agy gemini-4-argon-high + 서브에이전트):
+  - 핵심(전환 상태, 구독 짝, 할당·필드 순서) → 둘 다 전환·구독 통과. 파괴된 재생기로 바꿀 때 예외(둘 다), `playbackSpeed` 미반영(서브에이전트) → 고침
+  - 연결부(취소·중복·파괴, 텍스처 수명, 기존 API) → 둘 다 지적: 준비 중 멈춤·중복 호출이 앞 준비를 끊지 못함, 준비 중 raw·텍스처 소실. 서브에이전트만: 멈춘 반복의 재정지가 RawImage를 덮음, 반복 중 일반 재생이 섞임 → 모두 고침
+  - 재확인: agy 3항목 통과, 서브에이전트 앞선 지적 모두 막힘. 새 지적(화면을 넘겨준 뒤 멈추면 덮음, 문구) → 고침
+- agy (테스트 묶음): 겹친 호출 검증이 느슨함 → 앞 호출 false로 단언. RenderTexture 정리는 `VideoManager.OnDestroy` 가 해 오탐
+- PR 리뷰(Claude `/code-review` high, #87, 5건): CHANGELOG의 4K 측정 조건은 바로 고침. 동작 4건은 사용자 지시("4건 모두 고쳐줘")로 고침 → 보이는 두 번째 재생기 오류 때 원래 재생기의 반복으로 이어 재생, 쉬는 재생기가 5초 넘게 준비되지 않으면 되감을 때 다시 준비, 재생 설정을 시작할 때마다 복사, 재생을 시작하는 순간 취소되면 vp를 멈춤(이 분기는 테스트 없음). 재리뷰: agy·서브에이전트가 짚은 빈틈(되감기 중 동기 오류, 준비된 뒤 오류와 늦은 frameReady, 막 파괴된 재생기)도 고치고 다시 통과.
+- 재검증: PlayMode 212/212(`RootLifetimeScope` 없는 복사본), Windows 빌드 성공, 창 없는 실행 60번 전환 모두 마지막 2번·첫 2번. `RootLifetimeScope` 가 자동으로 뜨는 복사본에서는 211/212(`UIManagerTests.의존성_주입_누락시_안내_오류를_출력한다` 실패). `origin/main` 에 36초 대기 테스트만 더해도 같은 종류로 실패해 영상 코드와 무관한 기존 취약점으로 보고 TODO에 남김.
+- 남은 것: 재생 중 RawImage만 파괴되면 vp가 파괴될 때까지 디코딩. 일반 재생 준비 중에 같은 vp로 반복을 시작하고 취소하는 겹침은 기존 일반 재생끼리의 겹침과 같은 종류라 둠.
+
 ### [2026-11-19 00:14] Claude → Antigravity + 서브에이전트 · 감시가 다시 켠 앱의 포그라운드 확인, F 키 표시 색 (fix/focus-foreground-check)
 - 요청: F 키 표시의 ON을 초록, OFF를 빨강으로. 감시가 다시 켠 앱에서 D 키가 듣지 않음(한 번 클릭하면 됨) → 포커스를 못 가져오는 문제 수정.
 - 변경: `WindowFocusRestorer` 가 1초마다 `GetForegroundWindow` 의 프로세스가 이 앱인지 확인해 아니면 대기를 시작하고(`Application.isFocused` 는 true라 기존 경로가 시도하지 않았음), 맞으면 대기를 끝냄. `focusChanged(true)` 도 실제 포그라운드일 때만 대기를 끝냄. 토글 표시의 ON/OFF와 감시 상태 단어에 `<color>`(로그에는 없음), `StatusMessageOverlay` richText 켬. 버전 26.11.19-1.
