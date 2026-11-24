@@ -26,6 +26,8 @@ namespace HuliacDev.UI
         private readonly Dictionary<RenderTexture, VideoPlayer> _renderTextureOwners =
             new Dictionary<RenderTexture, VideoPlayer>();
 
+        private readonly List<SeamlessVideoLoop> _seamlessLoops = new List<SeamlessVideoLoop>();
+
         private ILogger<VideoManager> _logger;
 
         private bool _isOriginal;
@@ -49,6 +51,26 @@ namespace HuliacDev.UI
             if (SingletonGuard<VideoManager>.CheckDuplicate(this, out _isOriginal))
             {
                 return;
+            }
+        }
+
+        /// <summary>
+        /// 번갈아 재생 중인 영상의 화면 전환을 갱신하고, 재생기가 파괴된 것은 정리함.
+        /// </summary>
+        private void LateUpdate()
+        {
+            double now = Time.realtimeSinceStartupAsDouble;
+            for (int i = _seamlessLoops.Count - 1; i >= 0; i--)
+            {
+                SeamlessVideoLoop loop = _seamlessLoops[i];
+                if (loop.Primary)
+                {
+                    loop.Tick(now);
+                    continue;
+                }
+
+                loop.Release();
+                _seamlessLoops.RemoveAt(i);
             }
         }
 
@@ -114,9 +136,18 @@ namespace HuliacDev.UI
         /// 비디오 스트림을 비동기로 준비하고 완료 시 재생을 시작함. 재생을 시작했으면 true, 인자가 잘못됐거나
         /// 준비 중 오류·시간 초과·취소로 재생하지 않았거나 준비 중에 VideoPlayer가 파괴됐으면 false를 돌려줌(실패 사유는 로그에 남음).
         /// 준비 중 오류와 준비 완료가 같은 프레임에 오면 재생하지 않았는데도 VideoPlayer.isPrepared가 true일 수 있으므로,
-        /// 재생 여부는 그 값이 아니라 이 반환값으로 판단할 것.
+        /// 재생 여부는 그 값이 아니라 이 반환값으로 판단할 것. vp가 PlaySeamlessLoopAsync로 준비·반복 중이면 먼저 그 반복을 멈춤(이 재생이 실패해도 반복은 멈춘 채임).
         /// </summary>
-        public async UniTask<bool> PrepareAndPlayAsync(VideoPlayer vp, string url, AudioSource audioSource, float volume, CancellationToken cancellationToken)
+        public UniTask<bool> PrepareAndPlayAsync(VideoPlayer vp, string url, AudioSource audioSource, float volume, CancellationToken cancellationToken)
+        {
+            StopSeamlessLoop(vp);
+            return PrepareAndPlayCoreAsync(vp, url, audioSource, volume, cancellationToken);
+        }
+
+        /// <summary>
+        /// 비디오를 준비해 재생하는 실제 흐름. 공개 메서드와 반복 재생이 함께 씀.
+        /// </summary>
+        private async UniTask<bool> PrepareAndPlayCoreAsync(VideoPlayer vp, string url, AudioSource audioSource, float volume, CancellationToken cancellationToken)
         {
             if (!vp)
             {
@@ -152,6 +183,103 @@ namespace HuliacDev.UI
             // 3. 성공 시 재생
             vp.Play();
             return true;
+        }
+
+        /// <summary>
+        /// 무음 배경 영상을 반복 지점의 멈칫 없이 계속 재생함. 같은 영상을 재생기 두 개로 번갈아 틀며 두 번째 재생기는 안에서 만듦.
+        /// 재생을 시작했으면 true, 시작하지 못했으면 false를 돌려줌(실패 사유는 로그에 남음).
+        /// <para>
+        /// 먼저 WireRawImageAndRenderTexture로 vp와 raw를 연결해 둘 것. 소리는 끄고 재생하며, 재생 중에는 vp를 직접 조작하거나 다시 연결하지 말고
+        /// StopSeamlessLoop로 멈출 것(준비 중에도 멈춤). 같은 vp로 다시 부르면 앞의 준비·재생은 멈추고 준비 중이던 호출은 false를 돌려줌.
+        /// vp의 게임 오브젝트를 껐다 켜면 VideoPlayer가 멈추므로 다시 부를 것.
+        /// </para>
+        /// <para>
+        /// vp의 isLooping과 audioOutputMode를 바꾸며 멈춘 뒤에도 되돌리지 않음. 길이를 알 수 없는 영상은 경고를 남기고 VideoPlayer의
+        /// 반복으로 재생함. errorHandler는 두 번째 재생기의 오류를 받음(vp의 오류는 vp.errorReceived를 구독할 것).
+        /// </para>
+        /// </summary>
+        public async UniTask<bool> PlaySeamlessLoopAsync(VideoPlayer vp, RawImage raw, string url, CancellationToken cancellationToken, VideoPlayer.ErrorEventHandler errorHandler = null)
+        {
+            if (!vp || !raw || !vp.targetTexture)
+            {
+                if (_logger != null) _logger.ZLogError($"[VideoManager] Seamless loop needs a VideoPlayer, a RawImage and a target texture. Call WireRawImageAndRenderTexture first.");
+                return false;
+            }
+
+            SeamlessVideoLoop loop = GetOrAddSeamlessLoop(vp);
+            loop.Stop();
+            vp.isLooping = false;
+            vp.audioOutputMode = VideoAudioOutputMode.None;
+
+            CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.GetCancellationTokenOnDestroy());
+            loop.SetPending(cts);
+            bool played;
+            try
+            {
+                played = await PrepareAndPlayCoreAsync(vp, url, null, 0f, cts.Token);
+            }
+            finally
+            {
+                loop.ClearPending(cts);
+            }
+
+            return played && !cts.IsCancellationRequested && TryBeginSeamlessLoop(loop, raw, errorHandler);
+        }
+
+        /// <summary>
+        /// PlaySeamlessLoopAsync로 시작한 준비나 반복 재생을 멈추고 raw의 텍스처를 vp의 것으로 되돌림. 반복 중이 아니면 아무것도 하지 않음.
+        /// </summary>
+        public void StopSeamlessLoop(VideoPlayer vp)
+        {
+            SeamlessVideoLoop loop = FindSeamlessLoop(vp);
+            if (loop != null) loop.Stop();
+        }
+
+        /// <summary>
+        /// 재생을 시작한 vp의 번갈아 재생을 시작함. 준비하는 동안 raw나 텍스처가 사라졌으면 재생을 멈추고 false를 돌려줌.
+        /// </summary>
+        private bool TryBeginSeamlessLoop(SeamlessVideoLoop loop, RawImage raw, VideoPlayer.ErrorEventHandler errorHandler)
+        {
+            VideoPlayer vp = loop.Primary;
+            if (!raw || !vp.targetTexture)
+            {
+                vp.Stop();
+                if (_logger != null) _logger.ZLogError($"[VideoManager] RawImage or target texture was removed while preparing the seamless loop: {vp.url}");
+                return false;
+            }
+
+            if (!loop.Begin(raw, errorHandler) && _logger != null)
+            {
+                _logger.ZLogWarning($"[VideoManager] Unknown video length; using VideoPlayer looping instead of the seamless loop: {vp.url}");
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// vp로 만든 반복을 돌려주고, 없으면 만들어 목록에 넣음. 다시 쓰면 두 번째 재생기도 다시 씀.
+        /// </summary>
+        private SeamlessVideoLoop GetOrAddSeamlessLoop(VideoPlayer vp)
+        {
+            SeamlessVideoLoop loop = FindSeamlessLoop(vp);
+            if (loop != null) return loop;
+
+            loop = new SeamlessVideoLoop(vp, this);
+            _seamlessLoops.Add(loop);
+            return loop;
+        }
+
+        /// <summary>
+        /// vp로 만든 반복을 찾음. 없으면 null.
+        /// </summary>
+        internal SeamlessVideoLoop FindSeamlessLoop(VideoPlayer vp)
+        {
+            for (int i = 0; i < _seamlessLoops.Count; i++)
+            {
+                if (_seamlessLoops[i].Primary == vp) return _seamlessLoops[i];
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -269,6 +397,13 @@ namespace HuliacDev.UI
         {
             SingletonGuard<VideoManager>.Release(_isOriginal);
             if (!_isOriginal) return;
+
+            foreach (SeamlessVideoLoop loop in _seamlessLoops)
+            {
+                loop.Release();
+            }
+
+            _seamlessLoops.Clear();
 
             foreach (RenderTexture rt in _activeRenderTextures)
             {
