@@ -6,13 +6,13 @@
 
 ## 진행 중
 
-- [ ] 무음 배경 영상을 반복 지점의 멈칫 없이 이어 재생하는 기능(재생기 두 개를 번갈아 쓰는 `SeamlessVideoLoop`)을 패키지에 넣고 `VideoManager` 에서 한 번의 호출로 쓰게 함 — 담당: Claude / 검증: Antigravity·서브에이전트 — 발견일: 2026-11-24
-
 ## 할 일
 
+- [ ] `RootLifetimeScope` 가 자동으로 뜨는 프로젝트(VContainerSettings)에서 전체 PlayMode 테스트가 길어지면(영상 코드 없이 기다리기만 하는 36초짜리 테스트를 더해도 재현) `UIManagerTests.의존성_주입_누락시_안내_오류를_출력한다` 등 로그를 기대하는 기존 테스트가 "Unhandled log"·"Expected log did not appear" 로 실패함. VContainerSettings 를 빼면 통과. 원인은 아직 모름 — 발견일: 2026-11-24
 
 ## 완료
 
+- [x] 무음 배경 영상을 반복 지점의 멈칫 없이 이어 재생하는 기능(재생기 두 개를 번갈아 쓰는 `SeamlessVideoLoop`)을 패키지에 넣고 `VideoManager.PlaySeamlessLoopAsync` 한 번으로 쓰게 함 — 완료: 2026-11-24 (#87)
 - [x] 다중 디스플레이(`Display.Activate`)에서 보조 디스플레이 창이 앞에 있을 때 키 입력이 앱에 들어가는지, 감시가 다시 켠 앱이 포그라운드를 되찾는지 실기 확인. 두 모니터 실기에서 보조 창을 클릭해도 Unity는 포커스를 잃었다고 보지 않았고(`focusChanged` 없음) 키 입력도 들어감. 감시 재시작 뒤 1초에 감지해 3초 뒤 되찾음("Focus returned after 1 restore attempt(s)"), 클릭 없이 단축키가 들음. `FindOwnUnityWindow` 가 보조 창을 고르는 경우도 키 입력에는 문제가 없어 고치지 않음 — 완료: 2026-11-19
 - [x] 자동 재시작 감시가 다시 켠 앱이 화면에 보여도 포그라운드가 아니라 한 번 클릭하기 전까지 키 입력이 다른 창으로 가던 것(`Application.isFocused` 는 true라 포커스 복구가 시도하지 않음). 1초마다 실제 포그라운드를 확인해 되찾음. `F` 키 표시의 ON/OFF·감시 상태에 색을 입힘 — 완료: 2026-11-19 (#86)
 - [x] 응답 없음 판정 키 이름을 `hangRestartSeconds` 로 되돌림(`autoRestartSeconds` 는 감시 전체의 시간처럼 읽힘, 기본 30초는 유지) — 완료: 2026-11-18 (#85)

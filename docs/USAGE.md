@@ -112,7 +112,7 @@ _videoManager.StopSeamlessLoop(videoPlayer);
 - 두 번째 재생기는 안에서 만들고(`videoPlayer`의 자식 `SeamlessLoopStandby`) 매 프레임 전환도 `VideoManager`가 합니다. 디코더와 RenderTexture가 하나씩 더 들므로, 여러 영상을 동시에 트는 화면에서는 부하를 확인하세요.
 - 반복하는 동안 `videoPlayer`를 직접 조작하지 마세요. 같은 `videoPlayer`로 `PrepareAndPlayAsync`·`UIManager.SetVideo`를 부르면 반복이 끝나고 새 영상이 재생됩니다.
 - `videoPlayer`의 게임 오브젝트를 껐다 켜면 재생이 멈추므로 다시 부르세요.
-- 재생 중 오류가 나면 화면을 바꾸는 코드가 있으면 `videoPlayer.errorReceived`를 구독하고, 같은 처리기를 `errorHandler` 인자로도 넘기세요(두 번째 재생기의 오류를 받음).
+- 재생 중 오류가 나면 화면을 바꾸는 코드가 있으면 `videoPlayer.errorReceived`를 구독하고, 같은 처리기를 `errorHandler` 인자로도 넘기세요(두 번째 재생기의 오류를 받음). 두 번째 재생기에 오류가 나도 재생은 이어지므로(보이는 동안이면 원래 재생기의 반복으로, 쉬는 동안이면 다시 준비), 화면을 내릴 필요가 없으면 넘기지 않아도 됩니다.
 - 처음과 끝 그림이 이어지지 않는 영상의 튐은 고치지 못합니다. 영상을 이어지게 만드세요.
 
 ## 외부 API 호출 로깅 (wavespeed, GPT 등)

@@ -195,7 +195,8 @@ namespace HuliacDev.UI
         /// </para>
         /// <para>
         /// vp의 isLooping과 audioOutputMode를 바꾸며 멈춘 뒤에도 되돌리지 않음. 길이를 알 수 없는 영상은 경고를 남기고 VideoPlayer의
-        /// 반복으로 재생함. errorHandler는 두 번째 재생기의 오류를 받음(vp의 오류는 vp.errorReceived를 구독할 것).
+        /// 반복으로 재생함. 두 번째 재생기에 오류가 나면 경고를 남기고 vp의 반복으로 이어 재생하거나(보이는 동안) 다시 준비시킴(쉬는 동안).
+        /// errorHandler는 그 오류를 함께 받음(vp의 오류는 vp.errorReceived를 구독할 것).
         /// </para>
         /// </summary>
         public async UniTask<bool> PlaySeamlessLoopAsync(VideoPlayer vp, RawImage raw, string url, CancellationToken cancellationToken, VideoPlayer.ErrorEventHandler errorHandler = null)
@@ -214,16 +215,27 @@ namespace HuliacDev.UI
             CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.GetCancellationTokenOnDestroy());
             loop.SetPending(cts);
             bool played;
+            bool isCurrent = false;
             try
             {
                 played = await PrepareAndPlayCoreAsync(vp, url, null, 0f, cts.Token);
             }
             finally
             {
-                loop.ClearPending(cts);
+                isCurrent = loop.ClearPending(cts);
             }
 
-            return played && !cts.IsCancellationRequested && TryBeginSeamlessLoop(loop, raw, errorHandler);
+            // 그사이 멈췄거나 다른 시작으로 바뀌었으면 vp는 이미 그쪽이 정리했으므로 건드리지 않음.
+            if (!played || !isCurrent) return false;
+
+            // 재생을 시작하는 순간 호출부가 취소했으면 한 번 재생된 채 남지 않게 멈춤.
+            if (cts.IsCancellationRequested)
+            {
+                vp.Stop();
+                return false;
+            }
+
+            return TryBeginSeamlessLoop(loop, raw, errorHandler);
         }
 
         /// <summary>
@@ -254,6 +266,14 @@ namespace HuliacDev.UI
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// 반복 재생의 두 번째 재생기에 난 오류를 경고로 남김.
+        /// </summary>
+        internal void WarnSeamlessLoopError(string message)
+        {
+            if (_logger != null) _logger.ZLogWarning($"[VideoManager] Seamless loop standby player error: {message}");
         }
 
         /// <summary>

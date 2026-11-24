@@ -118,6 +118,102 @@ namespace HuliacDev.Tests
         });
 
         /// <summary>
+        /// 쉬는 재생기의 준비가 한 번 실패해도 다시 준비시켜 번갈아 재생으로 돌아와야 함. 다시 시도하지 않으면 반복마다 계속 멈칫함.
+        /// 껐다 켠 VideoPlayer는 스스로 다시 재생하지 않으므로 준비 실패를 흉내 냄.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator 쉬는_재생기의_준비가_실패하면_다시_준비시킨다() => UniTask.ToCoroutine(async () =>
+        {
+            SeamlessVideoLoop loop = await PlayAsync();
+            loop.Standby.enabled = false;
+            await UniTask.Delay(1500, DelayType.Realtime);
+            loop.Standby.enabled = true;
+
+            await UniTask.WaitUntil(() => loop.Active == loop.Standby).AwaitWithRealtimeTimeout(15f, "다시 준비시키지 않아 되감기만 반복함");
+
+            Assert.IsTrue(loop.IsRunning);
+        });
+
+        /// <summary>
+        /// 첫 프레임에서 기다리던 쉬는 재생기에 오류가 나면 그 재생기로 바꾸지 않고, 다시 준비된 뒤에 번갈아 재생해야 함.
+        /// 준비됨 표시가 남으면 오류 난 재생기가 화면에 올라가 멈춤.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator 쉬는_재생기에_오류가_나면_다시_준비된_뒤에_바꾼다() => UniTask.ToCoroutine(async () =>
+        {
+            int errors = 0;
+            bool played = await _videoManager.PlaySeamlessLoopAsync(_player, _image, _url, CancellationToken.None, (_, _) => errors++).AwaitWithRealtimeTimeout(15f);
+            Assert.IsTrue(played);
+            SeamlessVideoLoop loop = _videoManager.FindSeamlessLoop(_player);
+            await UniTask.WaitUntil(() => loop.IsStandbyReady).AwaitWithRealtimeTimeout(5f, "쉬는 재생기가 준비되지 않음");
+
+            LogAssert.ignoreFailingMessages = true;
+            try
+            {
+                loop.Standby.url = new Uri(Path.Combine(Application.temporaryCachePath, "SeamlessVideoLoopTests_missing.mp4")).AbsoluteUri;
+                loop.Standby.Play();
+                await UniTask.WaitUntil(() => errors > 0).AwaitWithRealtimeTimeout(10f, "오류 처리기가 불리지 않음");
+                await UniTask.Delay(1500, DelayType.Realtime);
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = false;
+            }
+
+            Assert.IsTrue(loop.IsRunning);
+            Assert.AreSame(_player, loop.Active, "오류 난 재생기로 바뀜");
+
+            loop.Standby.url = _url;
+            await UniTask.WaitUntil(() => loop.Active == loop.Standby).AwaitWithRealtimeTimeout(15f, "다시 준비시키지 않음");
+        });
+
+        /// <summary>
+        /// 보이는 두 번째 재생기에 오류가 나면 화면이 멈춘 채 남지 않고 원래 재생기의 반복으로 이어지며, 오류 처리기도 불려야 함.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator 보이는_두_번째_재생기에_오류가_나면_원래_재생기의_반복으로_이어진다() => UniTask.ToCoroutine(async () =>
+        {
+            int errors = 0;
+            bool played = await _videoManager.PlaySeamlessLoopAsync(_player, _image, _url, CancellationToken.None, (_, _) => errors++).AwaitWithRealtimeTimeout(15f);
+            Assert.IsTrue(played);
+            SeamlessVideoLoop loop = _videoManager.FindSeamlessLoop(_player);
+            await UniTask.WaitUntil(() => loop.Active == loop.Standby).AwaitWithRealtimeTimeout(5f, "두 번째 재생기로 바뀌지 않음");
+
+            LogAssert.ignoreFailingMessages = true;
+            try
+            {
+                loop.Standby.url = new Uri(Path.Combine(Application.temporaryCachePath, "SeamlessVideoLoopTests_missing.mp4")).AbsoluteUri;
+                loop.Standby.Play();
+                await UniTask.WaitUntil(() => errors > 0).AwaitWithRealtimeTimeout(10f, "오류 처리기가 불리지 않음");
+                await UniTask.Delay(1500, DelayType.Realtime);
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = false;
+            }
+
+            Assert.IsFalse(loop.IsRunning);
+            Assert.IsTrue(_player.isLooping);
+            Assert.IsTrue(_player.isPlaying);
+            Assert.AreSame(_player.targetTexture, _image.texture);
+        });
+
+        /// <summary>
+        /// 멈춘 사이 바꾼 설정은 다시 시작할 때 두 번째 재생기에도 적용돼야 함. 빠지면 한 바퀴씩 걸러 예전 설정으로 보임.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator 다시_시작하면_바뀐_설정을_두_번째_재생기에도_적용한다() => UniTask.ToCoroutine(async () =>
+        {
+            await PlayAsync();
+            _videoManager.StopSeamlessLoop(_player);
+            _player.aspectRatio = VideoAspectRatio.FitInside;
+
+            SeamlessVideoLoop loop = await PlayAsync();
+
+            Assert.AreEqual(VideoAspectRatio.FitInside, loop.Standby.aspectRatio);
+        });
+
+        /// <summary>
         /// 멈추면 두 재생기가 모두 멈추고 화면이 원래 재생기의 텍스처로 돌아가며, 다시 시작하면 번갈아 재생해야 함.
         /// </summary>
         [UnityTest]

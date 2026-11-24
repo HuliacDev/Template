@@ -16,17 +16,22 @@ namespace HuliacDev.UI
     /// </summary>
     internal sealed class SeamlessVideoLoop
     {
+        // 쉬는 재생기가 이 시간 안에 준비되지 않으면 되감을 때 다시 준비시킴. 준비 중인 것을 바퀴마다 처음부터 다시 시키지 않을 만큼 길게 둠.
+        private const double ArmRetrySeconds = 5d;
+
         private readonly VideoPlayer _primary;
         private readonly VideoManager _videoManager;
         private readonly SeamlessLoopTimer _timer = new SeamlessLoopTimer();
         private readonly VideoPlayer.FrameReadyEventHandler _onFrameReady;
         private readonly VideoPlayer.EventHandler _onLoopPointReached;
+        private readonly VideoPlayer.ErrorEventHandler _onStandbyError;
 
         private RawImage _image;
         private VideoPlayer _standby;
         private VideoPlayer _active;
         private VideoPlayer.ErrorEventHandler _errorHandler;
         private CancellationTokenSource _pendingCts;
+        private double _armedAt;
         private bool _hasBegun;
         private bool _isRunning;
         private bool _isStandbyReady;
@@ -40,6 +45,7 @@ namespace HuliacDev.UI
             _videoManager = videoManager;
             _onFrameReady = OnFrameReady;
             _onLoopPointReached = OnLoopPointReached;
+            _onStandbyError = OnStandbyError;
         }
 
         /// <summary>
@@ -51,6 +57,11 @@ namespace HuliacDev.UI
         /// 번갈아 재생하는 중인지 여부.
         /// </summary>
         public bool IsRunning => _isRunning;
+
+        /// <summary>
+        /// 쉬는 재생기가 첫 프레임에서 기다리는 중인지 여부.
+        /// </summary>
+        public bool IsStandbyReady => _isStandbyReady;
 
         /// <summary>
         /// 두 번째 재생기. 아직 만들지 않았으면 null.
@@ -71,20 +82,22 @@ namespace HuliacDev.UI
         }
 
         /// <summary>
-        /// 준비가 끝난 취소 소스를 정리함. 이미 취소돼 다른 준비로 바뀌었으면 건드리지 않음.
+        /// 준비가 끝난 취소 소스를 정리하고 true를 돌려줌. 그사이 Stop이나 다른 시작으로 이미 취소됐으면 건드리지 않고 false를 돌려줌.
         /// </summary>
-        public void ClearPending(CancellationTokenSource cts)
+        public bool ClearPending(CancellationTokenSource cts)
         {
-            if (_pendingCts != cts) return;
+            if (_pendingCts != cts) return false;
 
             _pendingCts = null;
             cts.Dispose();
+            return true;
         }
 
         /// <summary>
         /// primary가 재생을 시작한 뒤 부름. 두 번째 재생기를 만들어(처음 한 번) 첫 프레임에서 멈춰 두고 번갈아 재생을 시작함.
         /// 길이를 알 수 없는 영상이면 재생기의 반복에 맡기고 false를 돌려줌.
-        /// errorHandler는 두 번째 재생기의 오류를 받음(primary의 오류는 부르는 쪽이 구독).
+        /// errorHandler는 두 번째 재생기의 오류를 받음(primary의 오류는 부르는 쪽이 구독). 보이는 두 번째 재생기에 오류가 나면
+        /// primary의 반복으로 이어 재생한 뒤 부름.
         /// </summary>
         public bool Begin(RawImage image, VideoPlayer.ErrorEventHandler errorHandler)
         {
@@ -99,12 +112,11 @@ namespace HuliacDev.UI
             }
 
             if (!_standby) CreateStandby();
-            _standby.url = _primary.url;
-            _standby.playbackSpeed = _primary.playbackSpeed;
+            CopySettingsToStandby();
             WireStandbyTexture();
 
             _errorHandler = errorHandler;
-            if (_errorHandler != null) _standby.errorReceived += _errorHandler;
+            _standby.errorReceived += _onStandbyError;
             _primary.loopPointReached += _onLoopPointReached;
             _standby.loopPointReached += _onLoopPointReached;
             _primary.frameReady += _onFrameReady;
@@ -178,11 +190,15 @@ namespace HuliacDev.UI
         }
 
         /// <summary>
-        /// 두 번째 재생기가 밖에서 파괴됐을 때 primary의 반복으로 이어 재생함. 화면이 멈춘 채 남지 않게 하기 위함.
+        /// 두 번째 재생기가 밖에서 파괴됐거나 보이는 동안 오류가 났을 때 primary의 반복으로 이어 재생함. 화면이 멈춘 채 남지 않게 하기 위함.
         /// </summary>
         private void FallBackToPrimary()
         {
             Detach();
+
+            // primary가 막 파괴됐으면 VideoManager.LateUpdate가 정리함.
+            if (!_primary) return;
+
             if (_image && _primary.targetTexture) _image.texture = _primary.targetTexture;
             _primary.isLooping = true;
             _primary.Play();
@@ -204,7 +220,7 @@ namespace HuliacDev.UI
             {
                 _standby.loopPointReached -= _onLoopPointReached;
                 _standby.frameReady -= _onFrameReady;
-                if (_errorHandler != null) _standby.errorReceived -= _errorHandler;
+                _standby.errorReceived -= _onStandbyError;
                 _standby.sendFrameReadyEvents = false;
                 _standby.Stop();
             }
@@ -217,7 +233,7 @@ namespace HuliacDev.UI
         }
 
         /// <summary>
-        /// primary 아래에 같은 설정의 두 번째 재생기를 만듦.
+        /// primary 아래에 두 번째 재생기를 만듦.
         /// </summary>
         private void CreateStandby()
         {
@@ -229,6 +245,15 @@ namespace HuliacDev.UI
             _standby.source = VideoSource.Url;
             _standby.renderMode = VideoRenderMode.RenderTexture;
             _standby.audioOutputMode = VideoAudioOutputMode.None;
+        }
+
+        /// <summary>
+        /// primary의 영상 주소와 재생 설정을 두 번째 재생기에 맞춤. 멈춘 사이 바뀐 설정이 한 바퀴씩 걸러 다르게 보이지 않도록 시작할 때마다 부름.
+        /// </summary>
+        private void CopySettingsToStandby()
+        {
+            _standby.url = _primary.url;
+            _standby.playbackSpeed = _primary.playbackSpeed;
             _standby.aspectRatio = _primary.aspectRatio;
             _standby.skipOnDrop = _primary.skipOnDrop;
             _standby.timeUpdateMode = _primary.timeUpdateMode;
@@ -253,6 +278,7 @@ namespace HuliacDev.UI
         private void ArmStandby(VideoPlayer player)
         {
             _isStandbyReady = false;
+            _armedAt = Time.realtimeSinceStartupAsDouble;
             player.Stop();
             player.sendFrameReadyEvents = true;
             player.Play();
@@ -271,7 +297,32 @@ namespace HuliacDev.UI
         }
 
         /// <summary>
+        /// 보이는 두 번째 재생기에 오류가 나면 primary의 반복으로 이어 재생함. 쉬는 동안의 오류는 되감을 때 다시 준비시켜 되찾음.
+        /// </summary>
+        private void OnStandbyError(VideoPlayer source, string message)
+        {
+            _videoManager.WarnSeamlessLoopError(message);
+            VideoPlayer.ErrorEventHandler errorHandler = _errorHandler;
+            if (_isRunning)
+            {
+                if (source == _active)
+                {
+                    FallBackToPrimary();
+                }
+                else
+                {
+                    // 오류 뒤에 늦게 온 첫 프레임 이벤트가 준비됨으로 되돌리지 않게 함. 다시 준비시킬 때(ArmStandby) 켬.
+                    source.sendFrameReadyEvents = false;
+                    _isStandbyReady = false;
+                }
+            }
+
+            if (errorHandler != null) errorHandler(source, message);
+        }
+
+        /// <summary>
         /// 재생 중인 쪽이 끝에 닿았는데 아직 바꾸지 못했으면 바꾸고, 쉬는 재생기가 준비되지 않았으면 되감아 다시 재생함.
+        /// 쉬는 재생기가 오래 준비되지 않으면 다시 준비시킴. 그대로 두면 준비가 한 번 실패한 뒤로 반복마다 멈칫함.
         /// </summary>
         private void OnLoopPointReached(VideoPlayer source)
         {
@@ -283,9 +334,16 @@ namespace HuliacDev.UI
                 return;
             }
 
+            // 아래 호출 안에서 오류 처리기가 반복을 끝냈으면 멈춘 재생기를 다시 틀지 않음.
             _timer.Reset();
             source.frame = 0;
+            if (!_isRunning) return;
+
             source.Play();
+            if (!_isRunning) return;
+
+            VideoPlayer resting = source == _primary ? _standby : _primary;
+            if (resting && Time.realtimeSinceStartupAsDouble - _armedAt >= ArmRetrySeconds) ArmStandby(resting);
         }
 
         /// <summary>
@@ -300,10 +358,12 @@ namespace HuliacDev.UI
             if (!next) return;
 
             if (_image) _image.texture = next.targetTexture;
-            next.Play();
             _active = next;
             _timer.Reset();
-            ArmStandby(previous);
+            next.Play();
+
+            // Play 안에서 오류 처리기가 반복을 끝냈으면 쉬게 하던 재생기를 다시 틀지 않음.
+            if (_isRunning) ArmStandby(previous);
         }
     }
 }
