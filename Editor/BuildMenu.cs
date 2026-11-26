@@ -12,8 +12,9 @@ using Debug = UnityEngine.Debug;
 namespace HuliacDev.Editor
 {
     /// <summary>
-    /// 에디터 상단의 Build 메뉴. "Windows Build"는 Build Settings의 씬 목록과 Development 설정으로
-    /// Windows 64비트 빌드를 프로젝트의 Build/ 폴더에 만들고, 성공하면 아래를 이어서 함.
+    /// 에디터 상단의 Build 메뉴. "Windows Build"의 두 하위 메뉴는 Build Settings의 씬 목록과 Development 설정으로
+    /// Windows 64비트 빌드를 프로젝트의 Build/ 폴더에 만듦. "Without Shutdown Scheduler"는 빌드 결과물에서
+    /// 종료 스케줄러 파일(<see cref="ShutdownSchedulerFileNames"/>)을 지우며 프로젝트의 원본은 건드리지 않음. 빌드에 성공하면 아래를 이어서 함.
     /// <list type="bullet">
     /// <item>빌드 보관 폴더가 정해져 있으면 &lt;프로젝트 폴더 이름&gt;/&lt;YYMMDD&gt;-&lt;N&gt;/에 버전 관리용 zip과 BuildInfo.txt(커밋·버전·빌드 시각)를 보관함.
     /// N은 그날 몇 번째 빌드인지이며 빌드마다 새 폴더를 만듦.</item>
@@ -22,6 +23,7 @@ namespace HuliacDev.Editor
     /// </list>
     /// 두 경로는 팀원·PC마다 다르므로 <see cref="BuildMenuPreferences"/>(Edit > Preferences > HuliacDev Build)에서 정함.
     /// 설치 태그는 붙이지 않음(설치할 때 따로 붙임).
+    /// Unity 메뉴는 하위 메뉴가 있는 항목을 누를 수 없으므로 "Build/Windows Build" 자체에는 동작이 없음.
     /// </summary>
     public static class BuildMenu
     {
@@ -38,10 +40,40 @@ namespace HuliacDev.Editor
         const int GitTimeoutMilliseconds = 10000;
 
         /// <summary>
-        /// Build Settings의 씬과 Development 설정으로 Windows 64비트 빌드를 만들고, 설정에 따라 보관 폴더에 zip을 남기고 복사 폴더에 복사함.
+        /// 종료 스케줄러를 빼는 빌드에서 결과물의 StreamingAssets에서 지우는 파일(시간표, 편집 도구, 작업 스케줄러 백업의 스크립트와 기록).
+        /// 시간표(ShutdownSettings.json)가 없으면 앱의 ShutdownScheduler는 아무것도 하지 않음.
         /// </summary>
-        [MenuItem("Build/Windows Build", false, 0)]
-        static void BuildWindowsAndArchive()
+        static readonly string[] ShutdownSchedulerFileNames =
+        {
+            "ShutdownSettings.json",
+            "ShutdownScheduleEditor.exe",
+            "ShutdownBackupGuard.ps1",
+            "ShutdownBackup.log"
+        };
+
+        /// <summary>
+        /// StreamingAssets의 종료 스케줄러 파일을 그대로 두고 빌드함.
+        /// </summary>
+        [MenuItem("Build/Windows Build/With Shutdown Scheduler", false, 0)]
+        static void BuildWindowsWithShutdownScheduler()
+        {
+            BuildWindowsAndArchive(true);
+        }
+
+        /// <summary>
+        /// 빌드 결과물에서 종료 스케줄러 파일을 뺀 빌드를 만듦(예약 종료를 쓰지 않는 PC용).
+        /// </summary>
+        [MenuItem("Build/Windows Build/Without Shutdown Scheduler", false, 1)]
+        static void BuildWindowsWithoutShutdownScheduler()
+        {
+            BuildWindowsAndArchive(false);
+        }
+
+        /// <summary>
+        /// Build Settings의 씬과 Development 설정으로 Windows 64비트 빌드를 만들고, 설정에 따라 보관 폴더에 zip을 남기고 복사 폴더에 복사함.
+        /// includesShutdownScheduler가 false면 보관·복사 전에 결과물에서 종료 스케줄러 파일을 지우며, 지우지 못하면 보관·복사하지 않음.
+        /// </summary>
+        static void BuildWindowsAndArchive(bool includesShutdownScheduler)
         {
             string[] scenes = GetEnabledScenes();
             if (scenes.Length == 0)
@@ -89,12 +121,18 @@ namespace HuliacDev.Editor
             DateTime buildTime = DateTime.Now;
             Debug.Log($"[BuildMenu] Build finished: {exePath} ({report.summary.totalSize / (1024 * 1024)}MB, {report.summary.totalTime.TotalSeconds:F0}s)");
 
+            // 보관 zip과 현장 복사에 섞이지 않도록 둘보다 먼저 지움.
+            if (!includesShutdownScheduler && !TryRemoveShutdownSchedulerFiles(exePath))
+            {
+                return;
+            }
+
             // 보관(공유 드라이브)이 실패해도 현장으로 옮길 복사는 하도록 둘을 따로 처리함.
             if (!string.IsNullOrEmpty(archiveRoot))
             {
                 try
                 {
-                    ArchiveBuild(buildDir, archiveRoot, projectFolderName, buildTime, isDevelopment, gitState);
+                    ArchiveBuild(buildDir, archiveRoot, projectFolderName, buildTime, isDevelopment, includesShutdownScheduler, gitState);
                 }
                 catch (Exception e)
                 {
@@ -134,6 +172,47 @@ namespace HuliacDev.Editor
                 EditorUtility.DisplayDialog("Windows Build", $"Could not empty the build folder. If the built app is running, close it and try again.\n\n{buildDir}\n{e.Message}", "OK");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 빌드 결과물의 &lt;exe 이름&gt;_Data/StreamingAssets에서 종료 스케줄러 파일을 지움. 없는 파일은 넘어감.
+        /// 데이터 폴더를 찾지 못하거나 지우지 못하면 오류 로그를 남기고 false(스케줄러가 든 빌드가 현장에 나가지 않게 함).
+        /// </summary>
+        static bool TryRemoveShutdownSchedulerFiles(string exePath)
+        {
+            string dataDir = Path.Combine(Path.GetDirectoryName(exePath), Path.GetFileNameWithoutExtension(exePath) + "_Data");
+            if (!Directory.Exists(dataDir))
+            {
+                Debug.LogError($"[BuildMenu] The build finished, but its data folder was not found, so the shutdown scheduler files could not be removed. Skipping archive and copy: {dataDir}");
+                return false;
+            }
+
+            string streamingAssetsDir = Path.Combine(dataDir, "StreamingAssets");
+            StringBuilder removed = new StringBuilder();
+
+            foreach (string fileName in ShutdownSchedulerFileNames)
+            {
+                string path = Path.Combine(streamingAssetsDir, fileName);
+                if (!File.Exists(path)) continue;
+
+                try
+                {
+                    // 원본의 읽기 전용 속성이 복사돼 있으면 삭제가 거부되므로 먼저 풂.
+                    File.SetAttributes(path, FileAttributes.Normal);
+                    File.Delete(path);
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+                {
+                    Debug.LogError($"[BuildMenu] The build finished, but a shutdown scheduler file could not be removed. Skipping archive and copy: {path} ({e.Message})");
+                    return false;
+                }
+
+                if (removed.Length > 0) removed.Append(", ");
+                removed.Append(fileName);
+            }
+
+            Debug.Log($"[BuildMenu] Built without the shutdown scheduler. Removed: {(removed.Length > 0 ? removed.ToString() : "nothing (no scheduler files in the build)")}");
+            return true;
         }
 
         /// <summary>
@@ -202,7 +281,7 @@ namespace HuliacDev.Editor
         /// N은 그날 몇 번째 빌드인지(1부터)이며, 빌드마다 새 폴더를 만들어 이전 보관본을 덮어쓰지 않음.
         /// 공유 드라이브 같은 동기화 폴더에 직접 쓰다 끊기면 깨진 zip이 동기화되므로 임시 폴더에 만든 뒤 복사함.
         /// </summary>
-        static void ArchiveBuild(string buildDir, string archiveRoot, string projectFolderName, DateTime buildTime, bool isDevelopment, GitState gitState)
+        static void ArchiveBuild(string buildDir, string archiveRoot, string projectFolderName, DateTime buildTime, bool isDevelopment, bool includesShutdownScheduler, GitState gitState)
         {
             string projectArchiveDir = Path.Combine(archiveRoot, projectFolderName);
             int buildNumber = NextBuildNumber(projectArchiveDir, buildTime);
@@ -221,7 +300,7 @@ namespace HuliacDev.Editor
                 File.Copy(tempZip, archivedZip, true);
 
                 File.WriteAllText(Path.Combine(dateFolder, BuildInfoFileName),
-                    BuildInfoText(projectFolderName, buildTime, buildNumber, isDevelopment, gitState), new UTF8Encoding(true));
+                    BuildInfoText(projectFolderName, buildTime, buildNumber, isDevelopment, includesShutdownScheduler, gitState), new UTF8Encoding(true));
 
                 Debug.Log($"[BuildMenu] Archived: {archivedZip} ({new FileInfo(archivedZip).Length / (1024 * 1024)}MB)");
             }
@@ -398,7 +477,7 @@ namespace HuliacDev.Editor
         /// 보관한 zip이 어느 커밋에서 나왔는지 알 수 있게 빌드 정보를 만듦. 설치 태그를 붙일 커밋을 고를 때 씀.
         /// git 상태는 빌드 전에 읽은 값이며, git이 없거나 저장소가 아니면 "알 수 없음"으로 적음.
         /// </summary>
-        static string BuildInfoText(string projectFolderName, DateTime buildTime, int buildNumber, bool isDevelopment, GitState gitState)
+        static string BuildInfoText(string projectFolderName, DateTime buildTime, int buildNumber, bool isDevelopment, bool includesShutdownScheduler, GitState gitState)
         {
             string changes = gitState.Changes;
             string changeText = changes == null ? "알 수 없음" : (changes.Length == 0 ? "없음" : "있음(빌드에 커밋하지 않은 변경이 들어갔을 수 있음)\n" + changes);
@@ -409,6 +488,7 @@ namespace HuliacDev.Editor
             builder.AppendLine($"버전(bundleVersion): {PlayerSettings.bundleVersion}");
             builder.AppendLine($"빌드 시각: {buildTime:yyyy-MM-dd HH:mm:ss} (그날 보관한 {buildNumber}번째 빌드)");
             builder.AppendLine($"대상: Windows 64비트{(isDevelopment ? " (Development)" : string.Empty)}");
+            builder.AppendLine($"종료 스케줄러: {(includesShutdownScheduler ? "포함" : "제외(결과물에서 스케줄러 파일을 지움)")}");
             builder.AppendLine($"Unity: {Application.unityVersion}");
             builder.AppendLine($"git 브랜치: {gitState.Branch ?? "알 수 없음"}");
             builder.AppendLine($"git 커밋: {gitState.Commit ?? "알 수 없음"}");

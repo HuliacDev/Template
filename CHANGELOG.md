@@ -1,6 +1,14 @@
 # Changelog
 모든 주요 변경 사항을 이 파일에 기록합니다.
 
+## [26.11.26-1] - 2026-11-26
+
+### Added
+- **종료 스케줄러를 뺀 Windows 빌드 추가(`Editor/BuildMenu.cs`):** 예약 종료를 쓰지 않는 PC에 보낼 빌드를 손으로 파일을 지우지 않고 만들 수 있게 함. `Build > Windows Build > Without Shutdown Scheduler`는 빌드에 성공한 뒤 결과물의 `<Product Name>_Data/StreamingAssets/`에서 `ShutdownSettings.json`, `ShutdownScheduleEditor.exe`, `ShutdownBackupGuard.ps1`, `ShutdownBackup.log`를 지우고(있는 것만, 읽기 전용 속성은 풀고 지움) 보관·복사를 이어서 함. 지우지 못하거나 데이터 폴더를 찾지 못하면 보관·복사를 하지 않음. 프로젝트의 원본 파일은 건드리지 않으며, 시간표가 없는 앱의 `ShutdownScheduler`는 경고만 남기고 동작하지 않음. 작업 스케줄러 백업을 등록해 둔 PC에 이 빌드를 넣을 때는 백업을 먼저 삭제할 것. 편집기 메뉴라 자동 테스트는 추가하지 않음.
+
+### Changed
+- **Windows 빌드 메뉴를 하위 메뉴 두 개로 나눔(`Editor/BuildMenu.cs`):** `Build > Windows Build`를 누르면 바로 빌드하던 것이 `With Shutdown Scheduler`(이전과 같은 빌드) / `Without Shutdown Scheduler` 중에서 고르게 됨. 보관한 `BuildInfo.txt`에 `종료 스케줄러: 포함`·`제외` 줄을 추가해 어느 빌드인지 남김.
+
 ## [26.11.24-1] - 2026-11-24
 
 ### Added
