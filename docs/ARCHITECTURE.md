@@ -27,7 +27,7 @@ Runtime/
 └─ ThirdParty/ RuntimeInspector · LogViewer(Reporter)
 Editor/
 ├─ PackageUpdater          — Tools > Update Stack Packages (스택 UPM 패키지와 NuGet 업데이트)
-├─ BuildMenu               — Build > Windows Build (빌드, 버전 관리용 zip 보관, 복사 폴더에 복사)
+├─ BuildMenu               — Build > Windows Build > With / Without Shutdown Scheduler (빌드, 버전 관리용 zip 보관, 복사 폴더에 복사)
 ├─ BuildMenuPreferences    — Edit > Preferences > HuliacDev Build (보관·복사 경로, PC별)
 ├─ BuildCopyPromptWindow   — 빌드 뒤 복사 확인 창
 └─ ShutdownScheduleEditorBuilder — Tools > Build Shutdown Scheduler Exe

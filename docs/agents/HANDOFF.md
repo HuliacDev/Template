@@ -4,6 +4,19 @@ Claude가 Antigravity(agy)와 리뷰 서브에이전트에 맡긴 검증 기록.
 
 ---
 
+### [2026-11-26 11:07] Claude → Antigravity + 서브에이전트 · 종료 스케줄러를 뺀 Windows 빌드 PR 머지 전 리뷰 (feat/build-without-shutdown-scheduler)
+- 요청: 팀원이 올린 #88(`Build > Windows Build` 를 With / Without Shutdown Scheduler 하위 메뉴로 나눔)을 교차 리뷰하고 머지.
+- 변경: `Without` 은 빌드 뒤 결과물 `<exe>_Data/StreamingAssets/` 에서 종료 스케줄러 파일 4개를 지우고, 지우지 못하면 보관·복사를 하지 않음. `BuildInfo.txt` 에 포함·제외 줄. 버전 26.11.26-1. 리뷰 반영으로 CHANGELOG에 메뉴 경로 **Breaking:** 추가.
+- Claude 확인: diff와 주변 코드 읽기. 파일이 없을 때 `JsonLoader` 경고 뒤 `ShutdownScheduler` 가 쉼(`ShutdownScheduler.cs:113` 이후), 편집 도구는 단일 파일 게시라 지울 파일이 4개뿐, 옛 메뉴 경로를 쓰는 코드·테스트 없음, `Build/Setting`(100)과 순서 겹침 없음. 에디터 메뉴 클릭·소비 프로젝트 빌드는 확인하지 않음(PR 작성자가 임시 프로젝트 배치 모드로 72개 확인).
+- agy (gemini-4-argon-high, 문서 1묶음):
+  - 문서와 코드 동작 일치, 공개 문서에 프로젝트 이름·개인 경로 없음 → 통과
+  - CHANGELOG 형식 → 지적: 메뉴 경로가 사라졌는데 **Breaking:** 없음 → 고침(ExecuteMenuItem·단축키를 바꿀 경로 적음). 재확인 통과
+- 교차 검증 (agy gemini-4-argon-high + 서브에이전트, 코드 1묶음):
+  - 삭제 로직(경로, 예외 범위, 실패 시 보관·복사 차단, 원본 보호) → 둘 다 통과
+  - 메뉴 분리와 bool 전달, 실패 경로의 진행 표시줄 → 둘 다 통과
+  - C# 규칙·기존 스타일 → 둘 다 통과
+- 남은 것: 제외 빌드는 시작할 때 `JSON file not found` 경고를 남김(PR 설명대로 둠). 삭제 실패는 창 없이 오류 로그만 남김(빌드 실패와 같은 방식이라 둠).
+
 ### [2026-11-24 11:20] Claude → Antigravity + 서브에이전트 · 배경 영상을 멈칫 없이 반복 (feat/seamless-video-loop)
 - 요청: 배경 영상 반복 지점의 멈칫을 없애는 `SeamlessVideoLoop`(재생기 두 개를 번갈아 씀)를 패키지로 옮기기.
 - 변경: `VideoManager.PlaySeamlessLoopAsync`·`StopSeamlessLoop`(매 프레임 전환은 `VideoManager.LateUpdate`), `SeamlessVideoLoop`, 전환 시각 계산 `SeamlessLoopTimer`. 공개 `PrepareAndPlayAsync` 는 같은 `VideoPlayer` 의 반복을 먼저 멈춤. 버전 26.11.24-1.

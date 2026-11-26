@@ -344,9 +344,20 @@ public class GameLifetimeScope : RootLifetimeScope
 
 ### 빌드와 보관 (Build > Windows Build)
 
-Build Settings의 씬 목록과 **Development Build** 설정으로 Windows 64비트 빌드를 프로젝트의 `Build/` 폴더(`<Product Name>.exe`)에 만들고, 성공하면 이어서 아래를 합니다. 이전 빌드의 파일이 섞이지 않도록 빌드 전에 `Build/` 폴더를 비우므로, 이 폴더에는 다른 파일을 두지 않습니다(빌드한 앱이 실행 중이라 비우지 못하면 알리고 멈춥니다).
+`Windows Build`에는 하위 메뉴가 둘 있습니다. Unity 메뉴는 하위 메뉴가 있는 항목을 누를 수 없으므로 둘 중 하나를 고릅니다.
 
-1. **빌드 보관 폴더**가 정해져 있으면 `<보관 폴더>/<프로젝트 폴더 이름>/<YYMMDD>-<N>/`에 버전 관리용 zip(`<프로젝트 폴더 이름>_v<bundleVersion>.zip`)과 `BuildInfo.txt`(버전, 빌드 시각과 그날 몇 번째 빌드인지, git 브랜치·커밋, 커밋하지 않은 변경이 있었는지. git 값은 빌드 전에 읽음)를 둡니다. N은 그날 몇 번째로 보관한 빌드인지이며(예: `261103-1`, `261103-2`), 빌드마다 새 폴더를 만들어 이전 보관본을 덮어쓰지 않습니다.
+| 메뉴 | 빌드 결과물 |
+|---|---|
+| `With Shutdown Scheduler` | `StreamingAssets`의 파일을 그대로 넣습니다. |
+| `Without Shutdown Scheduler` | 결과물의 `<Product Name>_Data/StreamingAssets/`에서 `ShutdownSettings.json`, `ShutdownScheduleEditor.exe`, `ShutdownBackupGuard.ps1`, `ShutdownBackup.log`를 지웁니다(있는 것만). |
+
+- 제외 빌드는 프로젝트의 `Assets/StreamingAssets/` 원본을 건드리지 않습니다. 보관·복사보다 먼저 지우며, 지우지 못하면 오류 로그를 남기고 보관·복사를 하지 않습니다(`Build/` 폴더에는 스케줄러 파일이 남아 있을 수 있습니다).
+- 앱 코드의 `ShutdownScheduler`는 그대로 들어가지만, 시간표 파일이 없어 시작할 때 `JSON file not found` 경고를 남기고 아무것도 하지 않습니다.
+- 작업 스케줄러 백업을 등록해 둔 PC의 폴더를 제외 빌드로 바꾸면 백업 스크립트가 없어지고 등록한 작업(`shutdown-backup`)만 남아 실패합니다. 먼저 편집 도구에서 **작업 스케줄러 백업 삭제**를 하세요.
+
+두 빌드 모두 Build Settings의 씬 목록과 **Development Build** 설정으로 Windows 64비트 빌드를 프로젝트의 `Build/` 폴더(`<Product Name>.exe`)에 만들고, 성공하면 이어서 아래를 합니다. 이전 빌드의 파일이 섞이지 않도록 빌드 전에 `Build/` 폴더를 비우므로, 이 폴더에는 다른 파일을 두지 않습니다(빌드한 앱이 실행 중이라 비우지 못하면 알리고 멈춥니다).
+
+1. **빌드 보관 폴더**가 정해져 있으면 `<보관 폴더>/<프로젝트 폴더 이름>/<YYMMDD>-<N>/`에 버전 관리용 zip(`<프로젝트 폴더 이름>_v<bundleVersion>.zip`)과 `BuildInfo.txt`(버전, 빌드 시각과 그날 몇 번째 빌드인지, git 브랜치·커밋, 커밋하지 않은 변경이 있었는지, 종료 스케줄러 포함 여부. git 값은 빌드 전에 읽음)를 둡니다. zip 이름은 두 빌드가 같으므로 어느 빌드인지는 `BuildInfo.txt`로 구분합니다. N은 그날 몇 번째로 보관한 빌드인지이며(예: `261103-1`, `261103-2`), 빌드마다 새 폴더를 만들어 이전 보관본을 덮어쓰지 않습니다.
 2. **복사 폴더**가 정해져 있고 그 폴더가 있으면(드라이브가 연결돼 있으면) '빌드 뒤 복사' 설정에 따라 묻거나 바로 `<복사 폴더>/<프로젝트 폴더 이름>/`에 빌드 폴더를 압축 없이 복사합니다(현장 PC로 옮길 빌드, 항상 최신 빌드만 둠). 복사 전에 `<복사 폴더>/<프로젝트 폴더 이름>/`을 비우므로 그 폴더에 따로 넣어 둔 파일도 지워집니다. 다른 프로그램이 그 폴더의 파일을 쓰고 있어 비우지 못하면 복사하지 않고 오류 로그를 남깁니다. 묻는 창(**Copy Build**)에서 **Don't ask again**을 체크하면 누른 버튼(**Copy** / **Skip**)에 따라 '항상 복사'나 '복사 안 함'으로 바뀝니다. 보관이 실패해도 복사는 합니다.
 
 Unity가 함께 만드는 현장에 보내면 안 되는 폴더(`*_BurstDebugInformation_DoNotShip`, IL2CPP의 `*_BackUpThisFolder_ButDontShipItWithYourGame`)는 zip과 복사에서 모두 뺍니다.
