@@ -8,6 +8,7 @@
 
 ### Changed
 - **Windows 빌드 메뉴를 하위 메뉴 두 개로 나눔(`Editor/BuildMenu.cs`):** `Build > Windows Build`를 누르면 바로 빌드하던 것이 `With Shutdown Scheduler`(이전과 같은 빌드) / `Without Shutdown Scheduler` 중에서 고르게 됨. 보관한 `BuildInfo.txt`에 `종료 스케줄러: 포함`·`제외` 줄을 추가해 어느 빌드인지 남김.
+  - **Breaking:** 메뉴 경로 `Build/Windows Build`가 없어짐. `EditorApplication.ExecuteMenuItem("Build/Windows Build")`로 빌드를 부르거나 Shortcut Manager에서 이 메뉴에 단축키를 걸어 둔 프로젝트는 `Build/Windows Build/With Shutdown Scheduler`(이전과 같은 빌드)로 바꿀 것.
 
 ## [26.11.24-1] - 2026-11-24
 
